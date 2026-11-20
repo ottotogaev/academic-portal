@@ -2,7 +2,7 @@
 
 Multilingual (uz / ru / en) academic website for a university professor. PHP 8.1, MySQL, PDO, lightweight MVC, Apache shared hosting. No Composer dependencies and no frontend build step.
 
-Current state: **Phase 1 (infrastructure) with the approved public design, and Phase 2 (administrator login).** Content pages show empty states until the content phase; the admin panel has login, logout, dashboard and password change only.
+Current state: **Phase 1 (infrastructure) with the approved public design, Phase 2 (administrator login) and Phase 3 (content database schema).** Content pages show empty states until the content phase; the admin panel has login, logout, dashboard and password change only.
 
 ## Local setup
 
@@ -19,6 +19,7 @@ The public pages render without a database. `GET /health` returns only `ok` and 
 
 - `php tests/run.php` unit tests (no dependencies).
 - `bash tests/smoke.sh` HTTP smoke test; starts its own PHP server, needs no `.env` or database.
+- `php tests/schema-test.php` checks constraints, cascades and restrictions on a **disposable** database after `php bin/migrate.php`.
 - `bash tests/e2e-admin.sh` full admin flow (login, throttling, password change, logout) against a **disposable** MySQL/MariaDB database; export `DB_*` first. It deletes rows in `admins` and `login_attempts`, so never run it on real data.
 
 ## Structure
@@ -40,7 +41,7 @@ storage/           logs, cache, uploads (never public)
 ## Behaviour worth knowing
 
 - **Locales:** `/uz/`, `/ru/`, `/en/`. Only Uzbek has strings. `/ru/` and `/en/` show a short "translation unavailable" notice instead of reusing Uzbek content.
-- **Single subject:** the site is about one subject (neft va gazni kimyoviy qayta ishlash jarayonlari va qurilmalari). There is no list of disciplines ("Fanlar"), so the content tables will not need a `course_id`. This deliberately differs from the proposal in `DATABASE_SCHEMA.md`; update that document when the content schema is designed (Phase 3).
+- **Single subject:** the site is about one subject (neft va gazni kimyoviy qayta ishlash jarayonlari va qurilmalari). There is no list of disciplines ("Fanlar"), so the content tables have no `course_id`. See `DATABASE_SCHEMA.md` for the implemented schema and how it differs from the original proposal.
 - **Contact call to action** ("Xabar yuborish") appears only on the home page and the contact page. The contact form is rendered disabled until feedback handling exists (Phase 5).
 - **Unknown data stays hidden:** no placeholder text for email, phone, biography, etc. is shown publicly.
 - **Errors:** production responses never include messages, paths or traces; details go to `storage/logs/`. `APP_DEBUG` is ignored when `APP_ENV=production`.

@@ -1,263 +1,44 @@
-Database Schema Proposal
-1. General Rules
-Database: MySQL.
+# Database Schema (implemented)
 
-Use InnoDB and utf8mb4.
+This replaces the original proposal. Source of truth: `database/migrations/*.sql`, applied with `php bin/migrate.php`. Behaviour is verified by `tests/schema-test.php` on a disposable database.
 
-Use foreign keys where appropriate.
+## Rules
 
-Use migrations for schema changes.
+- MySQL / MariaDB, InnoDB, `utf8mb4` + `utf8mb4_unicode_ci`.
+- Migrations are versioned, idempotent (`CREATE TABLE IF NOT EXISTS`) and never destructive. Back up before running them in production (`--yes` is required there).
+- Portable SQL: no JSON, CHECK constraints or `DEFAULT CURRENT_TIMESTAMP` in tables from `0002` on. `created_at` / `updated_at` are `DATETIME` in UTC, written by PHP. (`0001` uses `DEFAULT CURRENT_TIMESTAMP`, which needs MySQL 5.6.5+.)
+- Statuses and kinds are short `VARCHAR`s checked against allowlists in PHP (no ENUM, so values can change without a schema change).
+- Translations: each translatable entity has a `<entity>_translations` table with `UNIQUE (<entity>_id, locale)`. Only locales that have real content get rows; nothing is machine-filled. Deleting an entity removes its translation rows (`ON DELETE CASCADE`).
 
-All tables should have appropriate timestamps.
+## Differences from the original proposal (the site has one subject)
 
-The following is a proposed schema, not an already implemented database.
+- No `courses` table and no `course_id` anywhere.
+- Practical and laboratory lessons share one `lessons` table (`kind = practical | laboratory`). `safety_information` exists only for laboratory lessons and must contain verified content only.
+- `news.slug` is language-neutral and unique, so the language switcher can link the same article (the proposal stored it per translation).
+- `materials` stores `stored_name` (random server-side file name, files live in `storage/uploads`, never public) instead of `file_path`.
+- Comments are **not** created yet. When commenting is approved, use explicit nullable foreign keys (for example `news_id`) rather than an unchecked `content_type` + `content_id`.
 
-Validate the final design against actual application requirements and the hosting MySQL version.
-2. Administrators
-admins
-- id
-- username
-- password_hash
-- created_at
-- updated_at
-- last_login_at
-Version 1 supports exactly one administrator account.
+## Tables
 
-Do not create a public registration workflow.
-3. Teacher Profile
-teacher_profiles
-- id
-- email (nullable)
-- phone (nullable)
-- photo_path (nullable)
-- created_at
-- updated_at
-teacher_profile_translations
-- id
-- teacher_profile_id
-- locale
-- full_name
-- position
-- academic_degree
-- specialization
-- biography (nullable)
-- education (nullable)
-- experience (nullable)
-Unique constraint:
-- teacher_profile_id + locale
-The confirmed teacher information must be entered accurately. Unknown information remains empty.
-4. Courses
-courses
-- id
-- slug
-- status
-- sort_order
-- created_at
-- updated_at
-course_translations
-- id
-- course_id
-- locale
-- title
-- description (nullable)
-Unique constraints:
-- course_id + locale
-- locale + slug, if slug is stored per translation
-Choose one consistent slug strategy before implementing routing.
-5. Course Topics
-course_topics
-- id
-- course_id
-- sort_order
-- status
-- created_at
-- updated_at
-course_topic_translations
-- id
-- topic_id
-- locale
-- title
-- description (nullable)
-6. News
-news
-- id
-- cover_image_path (nullable)
-- course_id (nullable)
-- status
-- published_at (nullable)
-- created_at
-- updated_at
-news_translations
-- id
-- news_id
-- locale
-- title
-- summary (nullable)
-- body
-- slug
-Unique constraints:
-- news_id + locale
-- locale + slug
-7. Assignments
-assignments
-- id
-- course_id
-- topic_id (nullable)
-- deadline (nullable)
-- status
-- created_at
-- updated_at
-assignment_translations
-- id
-- assignment_id
-- locale
-- title
-- description
-8. Practical Lessons
-practical_lessons
-- id
-- course_id
-- topic_id (nullable)
-- sort_order
-- status
-- created_at
-- updated_at
-practical_lesson_translations
-- id
-- practical_lesson_id
-- locale
-- title
-- description
-9. Laboratory Lessons
-laboratory_lessons
-- id
-- course_id
-- topic_id (nullable)
-- sort_order
-- status
-- created_at
-- updated_at
-laboratory_lesson_translations
-- id
-- laboratory_lesson_id
-- locale
-- title
-- description
-- safety_information (nullable)
-Safety information must only contain verified content.
-10. Materials
-materials
-- id
-- course_id (nullable)
-- topic_id (nullable)
-- category_id (nullable)
-- file_path
-- original_filename
-- mime_type
-- file_size
-- status
-- created_at
-- updated_at
-material_translations
-- id
-- material_id
-- locale
-- title
-- description (nullable)
-11. Material Categories
-material_categories
-- id
-- sort_order
-- status
-- created_at
-- updated_at
-material_category_translations
-- id
-- category_id
-- locale
-- name
-12. Comments
-comments
-- id
-- content_type
-- content_id
-- author_name
-- author_email (nullable)
-- body
-- status
-- created_at
-- updated_at
-Suggested statuses:
-- pending
-- approved
-- rejected
-Important:
+| Migration | Tables | Notes |
+|---|---|---|
+| 0001 | `site_settings` | key/value, unique `setting_key`; no secrets |
+| 0002 | `admins` | exactly one administrator, bcrypt `password_hash`, `last_login_at`; no default account |
+| 0003 | `login_attempts` | failed-login throttling; stores a SHA-256 of the client address |
+| 0004 | `topics`, `topic_translations` | `sort_order`, `status` (draft / published / archived) |
+| 0005 | `news`, `news_translations` | `slug`, `cover_image_path`, `status`, `published_at`; translation: `title`, `summary`, `body` |
+| 0006 | `assignments`, `assignment_translations` | optional `topic_id`, optional `deadline` |
+| 0007 | `lessons`, `lesson_translations` | `kind`, optional `topic_id`, `sort_order`; translation adds `safety_information` |
+| 0008 | `material_categories`(+`_translations`), `materials`(+`_translations`) | file metadata: `stored_name`, `original_filename`, `mime_type`, `file_size`; optional category and topic |
+| 0009 | `teacher_profiles`, `teacher_profile_translations` | single row in v1; NULL means unknown and is not shown publicly |
+| 0010 | `feedback_messages` | status new / in_progress / processed; `client_hash` for rate limiting; private |
 
-A polymorphic content_type + content_id relationship cannot enforce a normal foreign key to multiple tables.
+## Deletion policy
 
-Before implementation, decide between:
-1. Explicit nullable foreign keys for supported content types.
-2. A validated polymorphic relationship with strict allowlists and existence checks.
-Do not implement an unchecked polymorphic relationship.
-13. Feedback
-feedback_messages
-- id
-- sender_name
-- sender_email
-- subject (nullable)
-- message
-- status
-- created_at
-- updated_at
-Suggested statuses:
-- new
-- in_progress
-- processed
-Feedback is private.
-14. Site Settings
-site_settings
-- id
-- setting_key
-- setting_value
-- created_at
-- updated_at
-Unique constraint:
-- setting_key
-Do not store secrets or passwords as ordinary settings.
-15. Optional Media Metadata
-media_files
-Use only if a separate media library is justified.
+- `assignments.topic_id`, `lessons.topic_id`, `materials.topic_id`, `materials.category_id`: `ON DELETE RESTRICT`. A topic or category that is still in use cannot be deleted; archive it instead (`status = archived`) or move its items first.
+- Translation tables cascade from their parent only.
+- Published content is removed by an explicit admin action, never as a side effect of another deletion.
 
-Possible fields:
-- id
-- storage_path
-- original_filename
-- mime_type
-- file_size
-- created_at
-Avoid duplicating file metadata between media_files and materials without a clear ownership model.
-16. Indexes
-Consider indexes for:
-- Foreign keys.
-- Entity status.
-- Publication date.
-- Course associations.
-- Topic associations.
-- Locale and slug.
-- Comment status.
-- Feedback status.
-- Material category.
-- Searchable columns.
-Create composite indexes based on actual query patterns.
-17. Deletion Policy
-Define deletion behavior for every foreign key.
+## Indexes
 
-Prefer restrictive deletion or explicit application-level deletion workflows when educational content has dependent records.
-
-Avoid cascading deletion of important published content without explicit requirements.
-18. Migration Requirements
-- Version every migration.
-- Keep migrations reproducible.
-- Never run destructive migrations automatically in production.
-- Back up before production schema changes.
-- Test migrations on a separate database first.
+Listing queries filter by status and order by `sort_order`, `published_at`, `deadline` or `created_at`; each has a matching composite index. Foreign keys are indexed. Feedback has indexes on status and on `(client_hash, created_at)` for rate limiting.
