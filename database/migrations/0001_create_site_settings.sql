@@ -1,0 +1,10 @@
+-- Site-wide editable settings (contact email, phone, etc.). Never store secrets here.
+CREATE TABLE IF NOT EXISTS site_settings (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    setting_key VARCHAR(100) NOT NULL,
+    setting_value TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_site_settings_key (setting_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

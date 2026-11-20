@@ -1,0 +1,20 @@
+Options -Indexes -MultiViews
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Enable after the SSL certificate is active:
+    # RewriteCond %{HTTPS} off
+    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Serve real files (assets) directly, route everything else through the front controller.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Never serve hidden files.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
