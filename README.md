@@ -2,7 +2,7 @@
 
 Multilingual (uz / ru / en) academic website for a university professor. PHP 8.1, MySQL, PDO, lightweight MVC, Apache shared hosting. No Composer dependencies and no frontend build step.
 
-Current state: **Phase 1 (infrastructure) with the approved public design, Phase 2 (administrator login) and Phase 3 (content database schema).** Content pages show empty states until the content phase; the admin panel has login, logout, dashboard and password change only.
+Current state: **Phase 1 (infrastructure) with the approved public design, Phase 2 (administrator login) and Phase 3 (content database schema) and Phase 4 (content management for topics, news, assignments, practical and laboratory lessons).** Not built yet: materials (file uploads), teacher profile editing, contact form handling, ru/en translations.
 
 ## Local setup
 
@@ -20,6 +20,7 @@ The public pages render without a database. `GET /health` returns only `ok` and 
 - `php tests/run.php` unit tests (no dependencies).
 - `bash tests/smoke.sh` HTTP smoke test; starts its own PHP server, needs no `.env` or database.
 - `php tests/schema-test.php` checks constraints, cascades and restrictions on a **disposable** database after `php bin/migrate.php`.
+- `bash tests/e2e-content.sh` creates, edits, publishes, archives and deletes content through the admin and checks the public pages (disposable database, `DB_*` exported).
 - `bash tests/e2e-admin.sh` full admin flow (login, throttling, password change, logout) against a **disposable** MySQL/MariaDB database; export `DB_*` first. It deletes rows in `admins` and `login_attempts`, so never run it on real data.
 
 ## Structure
@@ -46,6 +47,7 @@ storage/           logs, cache, uploads (never public)
 - **Unknown data stays hidden:** no placeholder text for email, phone, biography, etc. is shown publicly.
 - **Errors:** production responses never include messages, paths or traces; details go to `storage/logs/`. `APP_DEBUG` is ignored when `APP_ENV=production`.
 - **Admin (`/admin`, Uzbek only):** `/admin/login`, `/admin/dashboard`, `/admin/password`, `POST /admin/logout`. Every admin route except login requires a session on the server; every POST requires a CSRF token. Sessions start only on admin routes (public pages set no cookie), use an HttpOnly, SameSite=Lax cookie (`__Host-` prefixed and Secure in production), live in `storage/sessions/`, expire after 2 h idle / 12 h total, get a new ID on login and password change, and are destroyed on logout. Failed logins are throttled (5 per client and 30 overall per 15 min, HTTP 429); only a hash of the client address is stored. Wrong user and wrong password give the same message and take the same time. Admin pages are `no-store` and `noindex`.
+- **Content management:** `/admin/{topics,news,assignments,practical,laboratory}` (list, create, edit, delete). All five are driven by `config/content.php`, so adding a field or type is a config change plus a translation string. Each item has a status: draft (hidden), published, archived (hidden). News with a future date stays hidden until then. Dates are typed and shown in `APP_TIMEZONE` (default Asia/Tashkent) and stored in UTC. Text is plain: blank lines make paragraphs, HTML is shown as text, never executed. The admin form shows a section for every language that has UI strings (today only Uzbek); a topic that is still used by assignments or lessons cannot be deleted. If the database is unreachable the public pages show their empty state and the error goes to `storage/logs/`.
 - **SQL portability:** the new tables use no `DEFAULT CURRENT_TIMESTAMP`, JSON or CHECK constraints; timestamps (UTC) are written by PHP, so they work on old MySQL and MariaDB alike. (`0001` still uses `DEFAULT CURRENT_TIMESTAMP`, which needs MySQL 5.6.5+; check the Eskiz version before deploying.)
 - **Fonts** (Manrope, IBM Plex Mono) are loaded from Google Fonts for now; self-hosting is a Phase 6 option.
 

@@ -71,6 +71,21 @@ final class App
         return $this->database ??= new Database((array) $this->config->get('database', []));
     }
 
+    /** Repository for a content type from config/content.php. */
+    public function content(string $type): \App\Services\ContentRepository
+    {
+        $def = $this->config->get('content.' . $type);
+        if (!is_array($def)) {
+            throw new \InvalidArgumentException('Unknown content type.');
+        }
+
+        return new \App\Services\ContentRepository(
+            $this->database()->pdo(),
+            $def,
+            (string) $this->config->get('app.default_locale', 'uz')
+        );
+    }
+
     public function session(): Session
     {
         return $this->session ??= new Session(

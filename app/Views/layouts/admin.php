@@ -19,6 +19,14 @@
 <link rel="stylesheet" href="<?= e(asset('css/admin.css')) ?>">
 </head>
 <body class="admin">
+<?php if (app()->auth()->check()): ?>
+<nav class="admin-nav" aria-label="<?= e(t('admin.title')) ?>">
+<a href="/admin/dashboard"><?= e(t('admin.nav.dashboard')) ?></a>
+<?php foreach (array_keys((array) app()->config()->get('content', [])) as $navType): ?>
+<a href="/admin/<?= e($navType) ?>"><?= e(t('admin.types.' . $navType)) ?></a>
+<?php endforeach; ?>
+</nav>
+<?php endif; ?>
 <main class="admin__main">
 <?= $content ?>
 </main>

@@ -367,3 +367,14 @@ button:disabled { cursor: not-allowed; }
   .b, .hx, .hx-spin, .flow, .flame, .hero__glow, .portrait__ring { animation: none; }
   .card { transition: none; }
 }
+
+/* ---------- Content pages ---------- */
+.card__meta { font-family: var(--mono); font-size: 12px; color: var(--amber); }
+.card h2.card__title { margin: 0; }
+.prose p { margin: 0 0 .8em; }
+.prose p:last-child { margin-bottom: 0; }
+.prose--page { font-size: 17px; line-height: 1.75; }
+.prose--page p { margin-bottom: 1.1em; }
+.container--narrow { max-width: 760px; }
+.section__foot { margin-top: 36px; }
+.note { margin-top: 14px; padding: 12px 14px; border-left: 3px solid var(--amber); background: rgba(255, 176, 74, .08); font-size: 14px; line-height: 1.5; border-radius: 0 8px 8px 0; color: var(--text); }

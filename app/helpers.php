@@ -64,3 +64,23 @@ function csrf_field(): string
 {
     return '<input type="hidden" name="_token" value="' . e(App::current()->csrf()->token()) . '">';
 }
+
+/** Plain text to safe HTML: blank lines separate paragraphs, single newlines become <br>. No markup is accepted. */
+function text_html(?string $text): string
+{
+    $paragraphs = preg_split('/\n{2,}/', trim(str_replace("\r\n", "\n", (string) $text))) ?: [];
+    $out = '';
+    foreach ($paragraphs as $paragraph) {
+        if (trim($paragraph) !== '') {
+            $out .= '<p>' . nl2br(e($paragraph), false) . '</p>';
+        }
+    }
+
+    return $out;
+}
+
+/** Date from a UTC database value, in the configured zone. */
+function format_date(?string $utc, string $format = 'd.m.Y'): string
+{
+    return \App\Core\Time::format($utc, (string) App::current()->config()->get('app.timezone', 'Asia/Tashkent'), $format);
+}

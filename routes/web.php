@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use App\Controllers\Admin\AuthController;
+use App\Controllers\Admin\ContentController;
 use App\Controllers\Admin\DashboardController;
 use App\Controllers\Public\PageController;
 use App\Core\App;
+use App\Core\Request;
 use App\Core\Response;
 use App\Core\Router;
 use App\Middleware\AdminAuthMiddleware;
@@ -29,9 +31,24 @@ return static function (Router $router): void {
     $router->get('/admin/password', [AuthController::class, 'showPassword'], [AdminAuthMiddleware::class]);
     $router->post('/admin/password', [AuthController::class, 'changePassword'], [AdminAuthMiddleware::class, CsrfMiddleware::class]);
 
+    // Content management: literal routes per type from config/content.php.
+    foreach (array_keys((array) App::current()->config()->get('content', [])) as $type) {
+        $guard = [AdminAuthMiddleware::class];
+        $post = [AdminAuthMiddleware::class, CsrfMiddleware::class];
+        $c = static fn (string $method): \Closure => static fn (Request $r): Response => (new ContentController(App::current(), $type))->$method($r);
+        $router->get('/admin/' . $type, $c('index'), $guard);
+        $router->get('/admin/' . $type . '/new', $c('create'), $guard);
+        $router->post('/admin/' . $type, $c('store'), $post);
+        $router->get('/admin/' . $type . '/{id}/edit', $c('edit'), $guard);
+        $router->post('/admin/' . $type . '/{id}', $c('update'), $post);
+        $router->post('/admin/' . $type . '/{id}/delete', $c('destroy'), $post);
+    }
+
     // Locale-prefixed public pages. The route list comes from config/navigation.php.
     foreach ((array) App::current()->config()->get('navigation', []) as $item) {
         $pattern = $item['path'] === '' ? '/{locale}' : '/{locale}/' . $item['path'];
         $router->get($pattern, [PageController::class, $item['key']], [LocaleMiddleware::class]);
     }
+
+    $router->get('/{locale}/news/{slug}', [PageController::class, 'newsItem'], [LocaleMiddleware::class]);
 };
