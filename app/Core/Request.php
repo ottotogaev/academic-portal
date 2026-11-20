@@ -15,6 +15,8 @@ final class Request
         public readonly string $path,
         private array $query = [],
         private array $params = [],
+        private array $post = [],
+        public readonly string $ip = '',
     ) {
     }
 
@@ -24,18 +26,25 @@ final class Request
         $queryStart = strpos($uri, '?');
         $rawPath = $queryStart === false ? $uri : substr($uri, 0, $queryStart);
 
-        return self::create((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'), $rawPath, $_GET);
+        // REMOTE_ADDR only: forwarded-for headers are client-controlled and would defeat login throttling.
+        return self::create(
+            (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'),
+            $rawPath,
+            $_GET,
+            $_POST,
+            (string) ($_SERVER['REMOTE_ADDR'] ?? '')
+        );
     }
 
-    /** @param array<string,mixed> $query */
-    public static function create(string $method, string $rawPath, array $query = []): self
+    /** @param array<string,mixed> $query @param array<string,mixed> $post */
+    public static function create(string $method, string $rawPath, array $query = [], array $post = [], string $ip = ''): self
     {
         $path = rawurldecode($rawPath);
         if (preg_match('//u', $path) !== 1 || preg_match('/[\x00-\x1F\x7F]/', $path) === 1) {
             throw new HttpException(400);
         }
 
-        return new self(strtoupper($method), self::normalize($path), $query);
+        return new self(strtoupper($method), self::normalize($path), $query, [], $post, $ip);
     }
 
     /** Leading slash, collapsed duplicate slashes, no trailing slash (except the root). */
@@ -61,6 +70,14 @@ final class Request
     public function query(string $name, ?string $default = null): ?string
     {
         $value = $this->query[$name] ?? null;
+
+        return is_string($value) ? $value : $default;
+    }
+
+    /** Form field as a string; arrays and missing fields give the default. */
+    public function input(string $name, string $default = ''): string
+    {
+        $value = $this->post[$name] ?? null;
 
         return is_string($value) ? $value : $default;
     }

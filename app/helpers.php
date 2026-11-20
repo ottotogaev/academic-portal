@@ -58,3 +58,9 @@ function partial(string $template, array $data = []): string
 {
     return App::current()->view()->render($template, $data);
 }
+
+/** Hidden CSRF input for admin forms. */
+function csrf_field(): string
+{
+    return '<input type="hidden" name="_token" value="' . e(App::current()->csrf()->token()) . '">';
+}

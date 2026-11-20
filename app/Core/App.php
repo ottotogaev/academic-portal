@@ -14,6 +14,9 @@ final class App
     private View $view;
     private Translator $translator;
     private ?Database $database = null;
+    private ?Session $session = null;
+    private ?Csrf $csrf = null;
+    private ?Auth $auth = null;
 
     public function __construct(
         private string $basePath,
@@ -66,6 +69,24 @@ final class App
     public function database(): Database
     {
         return $this->database ??= new Database((array) $this->config->get('database', []));
+    }
+
+    public function session(): Session
+    {
+        return $this->session ??= new Session(
+            $this->basePath . '/storage/sessions',
+            (bool) $this->config->get('app.session_secure', true)
+        );
+    }
+
+    public function csrf(): Csrf
+    {
+        return $this->csrf ??= new Csrf($this->session());
+    }
+
+    public function auth(): Auth
+    {
+        return $this->auth ??= new Auth(fn (): \PDO => $this->database()->pdo(), $this->session());
     }
 
     public function locale(): string

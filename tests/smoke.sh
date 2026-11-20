@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 PORT="${PORT:-8765}"
 BASE="http://127.0.0.1:${PORT}"
 LOGDIR="$(mktemp -d)"
-APP_ENV=local APP_DEBUG=false APP_URL="$BASE" php -S "127.0.0.1:${PORT}" -t public >"$LOGDIR/server.log" 2>&1 &
+APP_ENV=local APP_DEBUG=false SESSION_SECURE=false APP_URL="$BASE" php -S "127.0.0.1:${PORT}" -t public >"$LOGDIR/server.log" 2>&1 &
 SERVER_PID=$!
 trap 'kill $SERVER_PID 2>/dev/null; rm -rf "$LOGDIR"' EXIT
 for _ in $(seq 1 30); do curl -s -o /dev/null "$BASE/health" && break; sleep 0.2; done
@@ -80,6 +80,27 @@ expect_body "ru shows notice" "Перевод на этот язык пока н
 expect_no_body "ru does not reuse Uzbek content" "Neft va gazni" "$BASE/ru/"
 expect_body "en shows notice" "This language is not available yet." "$BASE/en/about"
 expect_body "ru is noindex" 'name="robots" content="noindex"' "$BASE/ru/"
+
+echo "Admin (no database needed)"
+expect_status "admin root redirects" 302 "$BASE/admin"
+expect_status "dashboard requires login" 302 "$BASE/admin/dashboard"
+[ "$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/admin/dashboard")" = "$BASE/admin/login" ] && ok "dashboard redirects to login" || bad "dashboard redirect target"
+expect_status "password page requires login" 302 "$BASE/admin/password"
+expect_status "logout without session/token" 302 -X POST "$BASE/admin/logout"
+expect_status "login page" 200 "$BASE/admin/login"
+expect_body "login form has csrf field" 'name="_token"' "$BASE/admin/login"
+expect_no_body "login page is not a public page (no site nav)" 'aria-current="page"' "$BASE/admin/login"
+alh=$(curl -s -D - -o /dev/null "$BASE/admin/login")
+echo "$alh" | grep -qi '^Cache-Control: no-store' && ok "login is no-store" || bad "login not no-store"
+echo "$alh" | grep -qi '^X-Robots-Tag: noindex' && ok "login is noindex" || bad "login not noindex"
+echo "$alh" | grep -qi '^Set-Cookie: ap_sid=' && ok "session cookie set on login page" || bad "no session cookie"
+echo "$alh" | grep -i '^Set-Cookie: ap_sid=' | grep -qi 'HttpOnly' && ok "session cookie is HttpOnly" || bad "cookie not HttpOnly"
+echo "$alh" | grep -i '^Set-Cookie: ap_sid=' | grep -qi 'SameSite=Lax' && ok "session cookie is SameSite=Lax" || bad "cookie SameSite"
+expect_status "login POST without csrf token is rejected" 400 -X POST -d 'username=a&password=b' "$BASE/admin/login"
+expect_status "login POST with wrong csrf token is rejected" 400 -X POST -d 'username=a&password=b&_token=nope' "$BASE/admin/login"
+expect_no_body "public pages set no session cookie" "ap_sid" "$BASE/uz/"
+curl -s -D - -o /dev/null "$BASE/uz/" | grep -qi '^Set-Cookie' && bad "public page sets a cookie" || ok "public page sets no cookie"
+expect_status "session files not reachable" 404 "$BASE/storage/sessions/.gitkeep"
 
 echo "Headers"
 hdrs=$(curl -s -D - -o /dev/null "$BASE/uz/")

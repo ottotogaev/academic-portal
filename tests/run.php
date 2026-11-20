@@ -8,7 +8,10 @@ declare(strict_types=1);
  */
 
 use App\Core\App;
+use App\Core\Auth;
 use App\Core\Config;
+use App\Core\Csrf;
+use App\Core\Session;
 use App\Core\Env;
 use App\Core\ErrorHandler;
 use App\Core\HttpException;
@@ -240,6 +243,79 @@ $footerOff = $app->view()->render('components/footer', ['footerCta' => false]);
 $footerOn = $app->view()->render('components/footer', ['footerCta' => true]);
 check('footer without CTA has no contact button', !str_contains($footerOff, 'href="/uz/contact"'));
 check('footer with CTA links to contact', str_contains($footerOn, 'href="/uz/contact"'));
+
+echo "Sessions, CSRF and admin authentication\n";
+$session = new Session($tmp . '/sessions', false, false);
+$csrf = new Csrf($session);
+$token = $csrf->token();
+check('csrf token is 64 hex chars and stable per session', preg_match('/^[a-f0-9]{64}$/', $token) === 1 && $csrf->token() === $token);
+check('csrf accepts the right token', $csrf->valid($token));
+check('csrf rejects wrong, empty and prefix tokens', !$csrf->valid('x' . $token) && !$csrf->valid('') && !$csrf->valid(substr($token, 0, 10)));
+
+$pdo = new PDO('sqlite::memory:');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+$pdo->exec('CREATE TABLE admins (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, last_login_at TEXT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)');
+$pdo->exec('CREATE TABLE login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, client_hash TEXT NOT NULL, attempted_at TEXT NOT NULL)');
+$t0 = 1800000000;
+
+$threw = static function (callable $fn): bool {
+    try {
+        $fn();
+    } catch (InvalidArgumentException | RuntimeException) {
+        return true;
+    }
+
+    return false;
+};
+check('createAdmin rejects short password', $threw(static fn () => Auth::createAdmin($pdo, 'prof', 'short', $t0)));
+check('createAdmin rejects bad username', $threw(static fn () => Auth::createAdmin($pdo, 'a b', 'correct horse battery', $t0)));
+Auth::createAdmin($pdo, 'prof', 'correct horse battery', $t0);
+check('createAdmin refuses a second administrator', $threw(static fn () => Auth::createAdmin($pdo, 'other', 'correct horse battery', $t0)));
+$stored = (string) $pdo->query('SELECT password_hash FROM admins')->fetchColumn();
+check('password is stored hashed, never plain', $stored !== 'correct horse battery' && password_verify('correct horse battery', $stored));
+
+$session = new Session($tmp . '/sessions', false, false);
+$auth = new Auth($pdo, $session, $t0 + 10);
+check('not authenticated initially', !$auth->check() && $auth->id() === null);
+check('wrong password fails', !$auth->attempt('prof', 'wrong password!!', '1.2.3.4') && !$auth->check());
+check('unknown user fails', !$auth->attempt('nobody', 'correct horse battery', '1.2.3.4') && !$auth->check());
+check('failures are recorded without the raw address', (int) $pdo->query('SELECT COUNT(*) FROM login_attempts')->fetchColumn() === 2 && !str_contains((string) $pdo->query('SELECT group_concat(client_hash) FROM login_attempts')->fetchColumn(), '1.2.3.4'));
+check('correct password logs in', $auth->attempt('prof', 'correct horse battery', '1.2.3.4') && $auth->check() && $auth->username() === 'prof');
+check('success clears that client failures and sets last_login_at', (int) $pdo->query('SELECT COUNT(*) FROM login_attempts')->fetchColumn() === 0 && $pdo->query('SELECT last_login_at FROM admins')->fetchColumn() !== null);
+$auth->logout();
+check('logout clears the session', !$auth->check());
+
+$auth = new Auth($pdo, new Session($tmp . '/sessions', false, false), $t0 + 100);
+for ($i = 0; $i < Auth::MAX_FAILURES_PER_CLIENT; $i++) {
+    check('not throttled before limit #' . $i, !$auth->throttled('9.9.9.9'));
+    $auth->attempt('prof', 'bad password ' . $i, '9.9.9.9');
+}
+check('throttled after repeated failures', $auth->throttled('9.9.9.9'));
+check('other clients are not throttled', !$auth->throttled('8.8.8.8'));
+$later = new Auth($pdo, new Session($tmp . '/sessions', false, false), $t0 + 100 + Auth::WINDOW_SECONDS + 5);
+check('throttle expires after the window', !$later->throttled('9.9.9.9'));
+
+$pdo->exec('DELETE FROM login_attempts');
+$global = new Auth($pdo, new Session($tmp . '/sessions', false, false), $t0 + 200);
+for ($i = 0; $i < Auth::MAX_FAILURES_GLOBAL; $i++) {
+    $global->attempt('prof', 'nope nope nope ' . $i, 'ip-' . $i);
+}
+check('global failure budget throttles everyone', $global->throttled('brand-new-ip'));
+$pdo->exec('DELETE FROM login_attempts');
+
+$ps = new Session($tmp . '/sessions', false, false);
+$pa = new Auth($pdo, $ps, $t0 + 300);
+check('changePassword needs a session', $pa->changePassword('correct horse battery', 'another long password') === 'auth');
+$pa->attempt('prof', 'correct horse battery', '5.5.5.5');
+check('changePassword rejects wrong current password', $pa->changePassword('not it not it!!', 'another long password') === 'current');
+check('changePassword rejects short new password', $pa->changePassword('correct horse battery', 'short') === 'weak');
+check('changePassword succeeds', $pa->changePassword('correct horse battery', 'another long password') === null);
+$pb = new Auth($pdo, new Session($tmp . '/sessions', false, false), $t0 + 400);
+check('old password no longer works, new one does', !$pb->attempt('prof', 'correct horse battery', '6.6.6.6') && $pb->attempt('prof', 'another long password', '6.6.6.6'));
+
+$lazy = new Auth(static fn (): PDO => throw new RuntimeException('database must not be touched'), new Session($tmp . '/sessions', false, false));
+check('check() works without touching the database', $lazy->check() === false);
 
 echo "Error handling\n";
 $prod = ErrorHandler::render(new RuntimeException('SECRET-DB-PASSWORD at /home/claude/app/X.php'), false);

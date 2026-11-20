@@ -2,7 +2,7 @@
 
 Multilingual (uz / ru / en) academic website for a university professor. PHP 8.1, MySQL, PDO, lightweight MVC, Apache shared hosting. No Composer dependencies and no frontend build step.
 
-Current state: **Phase 1 (infrastructure) with the approved public design applied.** Content pages show empty states until the content phase; there is no admin yet.
+Current state: **Phase 1 (infrastructure) with the approved public design, and Phase 2 (administrator login).** Content pages show empty states until the content phase; the admin panel has login, logout, dashboard and password change only.
 
 ## Local setup
 
@@ -10,21 +10,25 @@ Current state: **Phase 1 (infrastructure) with the approved public design applie
 2. Serve the public directory: `php -S 127.0.0.1:8000 -t public`.
 3. Apply migrations explicitly after the database is configured: `php bin/migrate.php` (`--status` lists them; in production `--yes` is required after a backup).
 
-The pages render without a database. `GET /health` returns only `ok` and does not touch the database or expose configuration.
+4. Create the single administrator (no default account exists): `php bin/create-admin.php <username>` (hidden password prompt, min. 12 characters). For local HTTP set `SESSION_SECURE=false`; keep it `true` in production (HTTPS).
+5. Open `/admin/login`.
+
+The public pages render without a database. `GET /health` returns only `ok` and does not touch the database or expose configuration.
 
 ## Tests
 
 - `php tests/run.php` unit tests (no dependencies).
 - `bash tests/smoke.sh` HTTP smoke test; starts its own PHP server, needs no `.env` or database.
+- `bash tests/e2e-admin.sh` full admin flow (login, throttling, password change, logout) against a **disposable** MySQL/MariaDB database; export `DB_*` first. It deletes rows in `admins` and `login_attempts`, so never run it on real data.
 
 ## Structure
 
 ```
 public/            only web-accessible folder (index.php, .htaccess, assets/)
 bootstrap/app.php  autoloader, env, config, error handling, App
-app/Core/          App, Router, Request, Response, View, Translator, Database, ErrorHandler, Logger, Env, Config
+app/Core/          App, Router, Session, Csrf, Auth, Request, Response, View, Translator, Database, ErrorHandler, Logger, Env, Config
 app/Controllers/   thin controllers (Public/, Admin/ later)
-app/Middleware/    LocaleMiddleware validates the {locale} URL segment
+app/Middleware/    LocaleMiddleware, AdminAuthMiddleware, CsrfMiddleware
 app/Views/         layouts/, components/, public/, errors/
 app/Lang/uz.php    Uzbek UI strings (ru.php and en.php do not exist yet)
 config/            app, database, navigation (navigation.php drives routes and the menu)
@@ -40,6 +44,8 @@ storage/           logs, cache, uploads (never public)
 - **Contact call to action** ("Xabar yuborish") appears only on the home page and the contact page. The contact form is rendered disabled until feedback handling exists (Phase 5).
 - **Unknown data stays hidden:** no placeholder text for email, phone, biography, etc. is shown publicly.
 - **Errors:** production responses never include messages, paths or traces; details go to `storage/logs/`. `APP_DEBUG` is ignored when `APP_ENV=production`.
+- **Admin (`/admin`, Uzbek only):** `/admin/login`, `/admin/dashboard`, `/admin/password`, `POST /admin/logout`. Every admin route except login requires a session on the server; every POST requires a CSRF token. Sessions start only on admin routes (public pages set no cookie), use an HttpOnly, SameSite=Lax cookie (`__Host-` prefixed and Secure in production), live in `storage/sessions/`, expire after 2 h idle / 12 h total, get a new ID on login and password change, and are destroyed on logout. Failed logins are throttled (5 per client and 30 overall per 15 min, HTTP 429); only a hash of the client address is stored. Wrong user and wrong password give the same message and take the same time. Admin pages are `no-store` and `noindex`.
+- **SQL portability:** the new tables use no `DEFAULT CURRENT_TIMESTAMP`, JSON or CHECK constraints; timestamps (UTC) are written by PHP, so they work on old MySQL and MariaDB alike. (`0001` still uses `DEFAULT CURRENT_TIMESTAMP`, which needs MySQL 5.6.5+; check the Eskiz version before deploying.)
 - **Fonts** (Manrope, IBM Plex Mono) are loaded from Google Fonts for now; self-hosting is a Phase 6 option.
 
 ## Deployment notes

@@ -28,6 +28,12 @@ final class Router
         $this->add('GET', $pattern, $handler, $middleware);
     }
 
+    /** @param list<string> $middleware middleware class names */
+    public function post(string $pattern, \Closure|array $handler, array $middleware = []): void
+    {
+        $this->add('POST', $pattern, $handler, $middleware);
+    }
+
     /** @param list<string> $middleware */
     public function add(string $method, string $pattern, \Closure|array $handler, array $middleware = []): void
     {
