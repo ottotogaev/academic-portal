@@ -9,8 +9,7 @@ export APP_ENV=local APP_DEBUG=false SESSION_SECURE=false
 PORT="${PORT:-8766}"; BASE="http://127.0.0.1:${PORT}"; export APP_URL="$BASE"
 JAR="$(mktemp)"; LOGDIR="$(mktemp -d)"
 php bin/migrate.php >/dev/null || { echo "migration failed"; exit 1; }
-php -r 'require "bootstrap/app.php";' >/dev/null
-php -r '$a=require "bootstrap/app.php"; $p=$a->database()->pdo(); $p->exec("DELETE FROM admins"); $p->exec("DELETE FROM login_attempts");'
+php -r '$basePath=getcwd(); $a=require "bootstrap/app.php"; $p=$a->database()->pdo(); $p->exec("DELETE FROM admins"); $p->exec("DELETE FROM login_attempts");'
 rm -rf storage/sessions/sess_* 
 ADMIN_PASSWORD='first long password' php bin/create-admin.php prof >/dev/null || { echo "create-admin failed"; exit 1; }
 php -S "127.0.0.1:${PORT}" -t public >"$LOGDIR/server.log" 2>&1 & PID=$!
