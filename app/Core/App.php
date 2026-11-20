@@ -86,6 +86,15 @@ final class App
         );
     }
 
+    public function uploads(): \App\Services\UploadStorage
+    {
+        return new \App\Services\UploadStorage(
+            $this->basePath . '/storage/uploads/materials',
+            (array) $this->config->get('uploads', []),
+            (int) $this->config->get('app.upload_max_size', 10485760)
+        );
+    }
+
     public function session(): Session
     {
         return $this->session ??= new Session(

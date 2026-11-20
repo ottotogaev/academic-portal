@@ -22,11 +22,16 @@ final class ContentRepository
     ) {
     }
 
+    private function titleField(): string
+    {
+        return (string) ($this->def['title_field'] ?? 'title');
+    }
+
     /** @return list<array<string,mixed>> rows with the default-locale title, for the admin list */
     public function all(): array
     {
         [$where, $params] = $this->fixedWhere();
-        $sql = 'SELECT b.*, t.title AS title FROM ' . $this->def['table'] . ' b LEFT JOIN ' . $this->def['translations']
+        $sql = 'SELECT b.*, t.' . $this->titleField() . ' AS title FROM ' . $this->def['table'] . ' b LEFT JOIN ' . $this->def['translations']
             . ' t ON t.' . $this->def['fk'] . ' = b.id AND t.locale = :locale'
             . ($where !== '' ? ' WHERE ' . $where : '') . ' ORDER BY ' . $this->def['admin_order'];
         $stmt = $this->pdo->prepare($sql);
@@ -79,6 +84,12 @@ final class ContentRepository
         foreach ($columns as $column) {
             $values[$column] = $base[$column] ?? ((array) $this->def['fixed'])[$column] ?? null;
         }
+        // "managed" columns (file metadata) are set by the controller, not by the form; only written when given.
+        foreach ((array) ($this->def['managed'] ?? []) as $column) {
+            if (array_key_exists($column, $base)) {
+                $values[$column] = $base[$column];
+            }
+        }
 
         $this->pdo->beginTransaction();
         try {
@@ -122,6 +133,17 @@ final class ContentRepository
         $stmt->execute($params + ['id' => $id]);
 
         return $stmt->rowCount() > 0;
+    }
+
+    /** Base row of a published item (no translation needed), for downloads. @return array<string,mixed>|null */
+    public function publishedRow(int $id): ?array
+    {
+        [$where, $params] = $this->fixedWhere();
+        $stmt = $this->pdo->prepare('SELECT b.* FROM ' . $this->def['table'] . " b WHERE b.id = :id AND b.status = 'published'" . ($where !== '' ? ' AND ' . $where : ''));
+        $stmt->execute($params + ['id' => $id]);
+        $row = $stmt->fetch();
+
+        return is_array($row) ? $row : null;
     }
 
     public function slugExists(string $slug, ?int $exceptId): bool
@@ -209,7 +231,7 @@ final class ContentRepository
         $stmt->execute(['id' => $id, 'l' => $locale]);
         $existing = $stmt->fetchColumn();
 
-        if (trim((string) ($fields['title'] ?? '')) === '' && $locale !== $this->defaultLocale) {
+        if (trim((string) ($fields[$this->titleField()] ?? '')) === '' && $locale !== $this->defaultLocale) {
             if ($existing !== false) {
                 $this->pdo->prepare("DELETE FROM {$table} WHERE id = :t")->execute(['t' => $existing]);
             }

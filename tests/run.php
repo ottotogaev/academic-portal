@@ -12,6 +12,7 @@ use App\Core\Auth;
 use App\Core\Config;
 use App\Core\Csrf;
 use App\Core\Session;
+use App\Services\UploadStorage;
 use App\Core\Env;
 use App\Core\ErrorHandler;
 use App\Core\HttpException;
@@ -316,6 +317,50 @@ check('old password no longer works, new one does', !$pb->attempt('prof', 'corre
 
 $lazy = new Auth(static fn (): PDO => throw new RuntimeException('database must not be touched'), new Session($tmp . '/sessions', false, false));
 check('check() works without touching the database', $lazy->check() === false);
+
+echo "Uploads\n";
+$types = require $basePath . '/config/uploads.php';
+$up = new UploadStorage($tmp . '/uploads', $types, 1000);
+$mk = static function (string $name, string $content, int $err = UPLOAD_ERR_OK) use ($tmp): array {
+    $f = $tmp . '/up-' . bin2hex(random_bytes(3));
+    file_put_contents($f, $content);
+
+    return ['name' => $name, 'tmp_name' => $f, 'error' => $err, 'size' => strlen($content)];
+};
+$pdf = "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n";
+$r = $up->inspect($mk('Dars.PDF', $pdf));
+check('accepts a real PDF and keeps a safe mime', $r['error'] === null && $r['meta']['ext'] === 'pdf' && $r['meta']['mime'] === 'application/pdf' && $r['meta']['original'] === 'Dars.PDF');
+check('no file is "empty", not an error', $up->inspect(null)['empty'] === true && $up->inspect(['error' => UPLOAD_ERR_NO_FILE])['empty'] === true);
+check('PHP code named .pdf is refused (content check)', $up->inspect($mk('x.pdf', "<?php echo 1;"))['error'] === 'file_type');
+check('.php is refused by extension', $up->inspect($mk('shell.php', $pdf))['error'] === 'file_type');
+check('double extension keeps only the real one', $up->inspect($mk('a.php.pdf', $pdf))['meta']['ext'] === 'pdf');
+check('executable renamed .txt is refused', $up->inspect($mk('a.txt', "MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff"))['error'] === 'file_type');
+check('HTML renamed .png is refused', $up->inspect($mk('a.png', '<html><script>alert(1)</script></html>'))['error'] === 'file_type');
+check('no extension is refused', $up->inspect($mk('README', 'hello text'))['error'] === 'file_type');
+check('too big is refused', $up->inspect($mk('big.txt', str_repeat('a', 1001)))['error'] === 'file_too_big');
+check('PHP ini size error maps to too big', $up->inspect(['name' => 'a.pdf', 'tmp_name' => '', 'error' => UPLOAD_ERR_INI_SIZE])['error'] === 'file_too_big');
+check('partial upload is a failure', $up->inspect(['name' => 'a.pdf', 'tmp_name' => '', 'error' => UPLOAD_ERR_PARTIAL])['error'] === 'file_failed');
+check('empty file is a failure', $up->inspect($mk('a.txt', ''))['error'] === 'file_failed');
+check('cleanName strips paths, quotes and control chars', UploadStorage::cleanName("..\\..\\a/b/\"x\"\n.pdf") === 'x.pdf');
+check('cleanName keeps unicode names', UploadStorage::cleanName('Ma‘ruza №1.pdf') === 'Ma‘ruza №1.pdf');
+check('path() refuses traversal and malformed names', $up->path('../../etc/passwd') === null && $up->path('a.pdf') === null && $up->path(str_repeat('a', 32) . '.php.pdf') === null);
+check('store refuses a file that was not uploaded via HTTP', (static function () use ($up, $mk): bool {
+    try {
+        $up->store($mk('a.txt', 'x'), 'txt');
+    } catch (RuntimeException) {
+        return true;
+    }
+
+    return false;
+})());
+file_put_contents($tmp . '/dl.pdf', 'data');
+$dl = Response::file($tmp . '/dl.pdf', "Ma‘ruza \"1\".pdf", 'application/pdf');
+$cd = $dl->headers()['Content-Disposition'];
+check('download is always an attachment with nosniff and exact length', str_starts_with($cd, 'attachment;') && $dl->headers()['X-Content-Type-Options'] === 'nosniff' && $dl->headers()['Content-Length'] === '4');
+check('download header cannot be injected through the file name', !str_contains($cd, "\n") && substr_count($cd, '"') === 2 && str_contains($cd, "filename*=UTF-8''Ma%E2%80%98ruza%20%221%22.pdf"));
+$rq = Request::create('POST', '/x', [], [], '', ['file' => ['name' => 'a', 'error' => 0], 'multi' => ['name' => ['a'], 'error' => [0]]]);
+check('Request::file returns single entries only', $rq->file('file') !== null && $rq->file('multi') === null && $rq->file('none') === null);
+check('format_bytes', format_bytes(500) === '500 B' && format_bytes(2048) === '2 KB' && format_bytes(1572864) === '1.5 MB');
 
 echo "Error handling\n";
 $prod = ErrorHandler::render(new RuntimeException('SECRET-DB-PASSWORD at /home/claude/app/X.php'), false);

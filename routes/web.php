@@ -50,5 +50,6 @@ return static function (Router $router): void {
         $router->get($pattern, [PageController::class, $item['key']], [LocaleMiddleware::class]);
     }
 
+    $router->get('/{locale}/materials/{id}/download', [PageController::class, 'download'], [LocaleMiddleware::class]);
     $router->get('/{locale}/news/{slug}', [PageController::class, 'newsItem'], [LocaleMiddleware::class]);
 };

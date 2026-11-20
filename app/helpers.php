@@ -84,3 +84,16 @@ function format_date(?string $utc, string $format = 'd.m.Y'): string
 {
     return \App\Core\Time::format($utc, (string) App::current()->config()->get('app.timezone', 'Asia/Tashkent'), $format);
 }
+
+/** "1.5 MB" style size; decimal comma is avoided on purpose. */
+function format_bytes(int $bytes): string
+{
+    if ($bytes < 1024) {
+        return $bytes . ' B';
+    }
+    if ($bytes < 1048576) {
+        return round($bytes / 1024) . ' KB';
+    }
+
+    return number_format($bytes / 1048576, 1, '.', '') . ' MB';
+}

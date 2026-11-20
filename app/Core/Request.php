@@ -17,6 +17,7 @@ final class Request
         private array $params = [],
         private array $post = [],
         public readonly string $ip = '',
+        private array $files = [],
     ) {
     }
 
@@ -32,19 +33,20 @@ final class Request
             $rawPath,
             $_GET,
             $_POST,
-            (string) ($_SERVER['REMOTE_ADDR'] ?? '')
+            (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
+            $_FILES
         );
     }
 
     /** @param array<string,mixed> $query @param array<string,mixed> $post */
-    public static function create(string $method, string $rawPath, array $query = [], array $post = [], string $ip = ''): self
+    public static function create(string $method, string $rawPath, array $query = [], array $post = [], string $ip = '', array $files = []): self
     {
         $path = rawurldecode($rawPath);
         if (preg_match('//u', $path) !== 1 || preg_match('/[\x00-\x1F\x7F]/', $path) === 1) {
             throw new HttpException(400);
         }
 
-        return new self(strtoupper($method), self::normalize($path), $query, [], $post, $ip);
+        return new self(strtoupper($method), self::normalize($path), $query, [], $post, $ip, $files);
     }
 
     /** Leading slash, collapsed duplicate slashes, no trailing slash (except the root). */
@@ -80,5 +82,13 @@ final class Request
         $value = $this->post[$name] ?? null;
 
         return is_string($value) ? $value : $default;
+    }
+
+    /** One uploaded file entry as PHP provides it, or null. Multi-file fields are not supported. */
+    public function file(string $name): ?array
+    {
+        $file = $this->files[$name] ?? null;
+
+        return is_array($file) && isset($file['error']) && !is_array($file['error']) ? $file : null;
     }
 }

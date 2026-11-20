@@ -17,7 +17,7 @@ final class ContentForm
     /**
      * @param array<string,mixed> $def
      * @param list<string>        $locales   locales that have translated UI (the first is the required default)
-     * @param array<int,string>   $topics    valid topic ids for "topic" columns
+     * @param array<string,array<int,string>> $refs valid ids per referenced type, for "ref" columns
      * @return array{base:array<string,mixed>,translations:array<string,array<string,string>>,old:array<string,string>,errors:array<string,string>}
      */
     public static function validate(
@@ -25,7 +25,7 @@ final class ContentForm
         Request $request,
         array $locales,
         string $zone,
-        array $topics,
+        array $refs,
         ?ContentRepository $repo,
         ?int $id,
     ): array {
@@ -44,7 +44,7 @@ final class ContentForm
         foreach ((array) $def['base'] as $name => $spec) {
             $raw = trim($request->input($name));
             $old[$name] = $raw;
-            $base[$name] = self::baseValue($name, (array) $spec, $raw, $zone, $topics, $errors);
+            $base[$name] = self::baseValue($name, (array) $spec, $raw, $zone, $refs, $errors);
         }
 
         if (isset($def['base']['slug']) && $repo !== null && $base['slug'] !== null && $repo->slugExists((string) $base['slug'], $id)) {
@@ -79,8 +79,8 @@ final class ContentForm
         return ['base' => $base, 'translations' => $translations, 'old' => $old, 'errors' => $errors];
     }
 
-    /** @param array<string,mixed> $spec @param array<int,string> $topics @param array<string,string> $errors */
-    private static function baseValue(string $name, array $spec, string $raw, string $zone, array $topics, array &$errors): mixed
+    /** @param array<string,mixed> $spec @param array<string,array<int,string>> $refs @param array<string,string> $errors */
+    private static function baseValue(string $name, array $spec, string $raw, string $zone, array $refs, array &$errors): mixed
     {
         switch ($spec['type']) {
             case 'int':
@@ -113,12 +113,12 @@ final class ContentForm
                 }
 
                 return $utc;
-            case 'topic':
+            case 'ref':
                 if ($raw === '') {
                     return null;
                 }
-                if (preg_match('/^\d{1,10}$/', $raw) !== 1 || !isset($topics[(int) $raw])) {
-                    $errors[$name] = 'topic_missing';
+                if (preg_match('/^\d{1,10}$/', $raw) !== 1 || !isset(($refs[$spec['ref']] ?? [])[(int) $raw])) {
+                    $errors[$name] = 'ref_missing';
 
                     return null;
                 }

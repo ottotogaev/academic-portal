@@ -83,9 +83,13 @@ final class ContentController extends AdminController
     public function destroy(Request $request): Response
     {
         $id = $this->id($request);
+        $stored = !empty($this->def['upload']) ? (string) ($this->repo->find($id)['base']['stored_name'] ?? '') : '';
         try {
             if (!$this->repo->delete($id)) {
                 throw new HttpException(404);
+            }
+            if ($stored !== '') {
+                $this->app->uploads()->remove($stored);
             }
             $this->app->session()->set('flash', ['ok', t('admin.messages.deleted')]);
         } catch (\PDOException $e) {
@@ -106,10 +110,23 @@ final class ContentController extends AdminController
             $request,
             $this->locales(),
             $this->zone(),
-            $this->topicTitles(),
+            $this->refs(),
             $this->repo,
             $id,
         );
+
+        // File (materials): required on create, optional replacement on edit. Checked before anything is stored.
+        $upload = null;
+        $file = null;
+        if (!empty($this->def['upload'])) {
+            $file = $request->file('file');
+            $upload = $this->app->uploads()->inspect($file);
+            if ($upload['error'] !== null) {
+                $result['errors']['file'] = $upload['error'];
+            } elseif ($upload['empty'] && $id === null) {
+                $result['errors']['file'] = 'file_required';
+            }
+        }
 
         if ($result['errors'] !== []) {
             return $this->form($id, $result['old'], $result['errors'], 422);
@@ -125,7 +142,31 @@ final class ContentController extends AdminController
             $base['published_at'] = $nowUtc;
         }
 
-        $id = $this->repo->save($id, $base, $result['translations'], $nowUtc);
+        $storage = $this->app->uploads();
+        $newFile = null;
+        $oldFile = null;
+        if ($upload !== null && $upload['meta'] !== null && $file !== null) {
+            $newFile = $storage->store($file, $upload['meta']['ext']);
+            $base['stored_name'] = $newFile;
+            $base['original_filename'] = $upload['meta']['original'];
+            $base['mime_type'] = $upload['meta']['mime'];
+            $base['file_size'] = $upload['meta']['size'];
+            if ($id !== null) {
+                $oldFile = (string) (($this->repo->find($id)['base']['stored_name'] ?? ''));
+            }
+        }
+
+        try {
+            $id = $this->repo->save($id, $base, $result['translations'], $nowUtc);
+        } catch (\Throwable $e) {
+            if ($newFile !== null) {
+                $storage->remove($newFile); // never leave an orphan behind a failed save
+            }
+            throw $e;
+        }
+        if ($oldFile !== null && $oldFile !== '') {
+            $storage->remove($oldFile);
+        }
         $this->app->session()->set('flash', ['ok', t('admin.messages.saved')]);
 
         return $this->redirect('/admin/' . $this->type . '/' . $id . '/edit');
@@ -142,7 +183,12 @@ final class ContentController extends AdminController
             'old' => $old,
             'errors' => $errors,
             'locales' => $this->locales(),
-            'topics' => isset($this->def['base']['topic_id']) ? $this->topicTitles() : [],
+            'refs' => $this->refs(),
+            'upload' => !empty($this->def['upload']) ? [
+                'limit' => $this->app->uploads()->effectiveLimit(),
+                'extensions' => $this->app->uploads()->extensions(),
+                'current' => $id === null ? null : ($this->repo->find($id)['base'] ?? null),
+            ] : null,
             'flash' => $this->app->session()->pull('flash'),
         ], $status);
     }
@@ -171,10 +217,17 @@ final class ContentController extends AdminController
         return $locales;
     }
 
-    /** @return array<int,string> */
-    private function topicTitles(): array
+    /** @return array<string,array<int,string>> id => title for every type this form can reference */
+    private function refs(): array
     {
-        return isset($this->def['base']['topic_id']) ? $this->app->content('topics')->titles() : [];
+        $refs = [];
+        foreach ((array) $this->def['base'] as $spec) {
+            if ($spec['type'] === 'ref' && !isset($refs[$spec['ref']])) {
+                $refs[$spec['ref']] = $this->app->content((string) $spec['ref'])->titles();
+            }
+        }
+
+        return $refs;
     }
 
     private function zone(): string

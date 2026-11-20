@@ -54,7 +54,7 @@ final class PageController extends Controller
 
     public function materials(): Response
     {
-        return $this->page('materials', 'public/list');
+        return $this->page('materials', 'public/materials', data: ['groups' => $this->materialGroups()]);
     }
 
     public function newsItem(Request $request): Response
@@ -77,6 +77,27 @@ final class PageController extends Controller
         }
 
         return $this->page('news', 'public/news_item', data: ['item' => $item], pagePath: 'news/' . $slug, title: (string) ($item['title'] ?? ''), description: (string) ($item['summary'] ?? ''));
+    }
+
+    /** Download of a published material. Only the numeric id is public; the stored file name never leaves the server. */
+    public function download(Request $request): Response
+    {
+        $raw = (string) $request->param('id');
+        if (preg_match('/^\d{1,10}$/', $raw) !== 1) {
+            throw new HttpException(404);
+        }
+        try {
+            $row = $this->app->content('materials')->publishedRow((int) $raw);
+        } catch (\Throwable $e) {
+            $this->app->logger()->error('Download lookup failed', ['message' => $e->getMessage()]);
+            throw new HttpException(404);
+        }
+        $path = $row === null ? null : $this->app->uploads()->path((string) $row['stored_name']);
+        if ($row === null || $path === null) {
+            throw new HttpException(404);
+        }
+
+        return Response::file($path, (string) $row['original_filename'], (string) $row['mime_type']);
     }
 
     public function contact(): Response
@@ -145,6 +166,49 @@ final class PageController extends Controller
 
             return [];
         }
+    }
+
+    /**
+     * Published materials grouped by published category (category order first, uncategorised last).
+     *
+     * @return list<array{name:string,items:list<array<string,mixed>>}>
+     */
+    private function materialGroups(): array
+    {
+        $items = $this->items('materials');
+        if ($items === []) {
+            return [];
+        }
+        $names = [];
+        try {
+            foreach ($this->app->content('categories')->published($this->app->locale(), Time::nowUtc()) as $category) {
+                $names[(int) $category['id']] = (string) $category['name'];
+            }
+        } catch (\Throwable $e) {
+            $this->app->logger()->error('Public content query failed', ['type' => 'categories', 'message' => $e->getMessage()]);
+        }
+
+        $groups = [];
+        $other = [];
+        foreach ($items as $item) {
+            $category = $item['category_id'] === null ? null : (int) $item['category_id'];
+            if ($category !== null && isset($names[$category])) {
+                $groups[$category][] = $item;
+            } else {
+                $other[] = $item;
+            }
+        }
+        $out = [];
+        foreach ($names as $id => $name) {
+            if (isset($groups[$id])) {
+                $out[] = ['name' => $name, 'items' => $groups[$id]];
+            }
+        }
+        if ($other !== []) {
+            $out[] = ['name' => $out === [] ? '' : t('pages.materials.other'), 'items' => $other];
+        }
+
+        return $out;
     }
 
     private function pathFor(string $key): string

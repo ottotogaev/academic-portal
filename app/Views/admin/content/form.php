@@ -6,7 +6,8 @@
  * @var array<string,string> $old
  * @var array<string,string> $errors
  * @var list<string>        $locales
- * @var array<int,string>   $topics
+ * @var array<string,array<int,string>> $refs
+ * @var ?array<string,mixed> $upload
  * @var ?array{0:string,1:string} $flash
  */
 $action = $id === null ? '/admin/' . $type : '/admin/' . $type . '/' . $id;
@@ -26,8 +27,23 @@ $multiline = static fn (array $spec): bool => $spec['type'] === 'textarea';
 <?php if ($errors !== []): ?>
 <p class="admin-alert" role="alert"><?= e(t('admin.errors.summary')) ?></p>
 <?php endif; ?>
-<form method="post" action="<?= e($action) ?>" class="form__fields" novalidate>
+<form method="post" action="<?= e($action) ?>" class="form__fields" novalidate<?= $upload !== null ? ' enctype="multipart/form-data"' : '' ?>>
 <?= csrf_field() ?>
+
+<?php if ($upload !== null): ?>
+<fieldset class="admin-fieldset">
+<legend><?= e(t('admin.form.file')) ?></legend>
+<div class="field<?= isset($errors['file']) ? ' field--error' : '' ?>">
+<?php if (is_array($upload['current'])): ?>
+<p class="admin-card__text"><?= e(t('admin.form.current_file')) ?>: <strong><?= e((string) $upload['current']['original_filename']) ?></strong> (<?= e(format_bytes((int) $upload['current']['file_size'])) ?>)</p>
+<?php endif; ?>
+<label for="file"><?= e(t(is_array($upload['current']) ? 'admin.form.replace_file' : 'admin.form.choose_file')) ?><?= is_array($upload['current']) ? '' : ' *' ?></label>
+<input id="file" name="file" type="file">
+<p class="form__note"><?= e(t('admin.form.file_hint', ['types' => strtoupper(implode(', ', $upload['extensions'])), 'max' => format_bytes((int) $upload['limit'])])) ?></p>
+<?= $err('file') ?>
+</div>
+</fieldset>
+<?php endif; ?>
 
 <?php foreach ($locales as $locale): ?>
 <fieldset class="admin-fieldset">
@@ -51,11 +67,11 @@ $multiline = static fn (array $spec): bool => $spec['type'] === 'textarea';
 <?php foreach ($def['base'] as $name => $spec): ?>
 <div class="field<?= isset($errors[$name]) ? ' field--error' : '' ?>">
 <label for="<?= e($name) ?>"><?= e(t('admin.fields.' . $name)) ?></label>
-<?php if ($spec['type'] === 'topic'): ?>
+<?php if ($spec['type'] === 'ref'): ?>
 <select id="<?= e($name) ?>" name="<?= e($name) ?>">
-<option value=""><?= e(t('admin.form.no_topic')) ?></option>
-<?php foreach ($topics as $topicId => $topicTitle): ?>
-<option value="<?= (int) $topicId ?>"<?= ((string) ($old[$name] ?? '')) === (string) $topicId ? ' selected' : '' ?>><?= e($topicTitle) ?></option>
+<option value=""><?= e(t('admin.form.no_ref')) ?></option>
+<?php foreach (($refs[$spec['ref']] ?? []) as $refId => $refTitle): ?>
+<option value="<?= (int) $refId ?>"<?= ((string) ($old[$name] ?? '')) === (string) $refId ? ' selected' : '' ?>><?= e($refTitle) ?></option>
 <?php endforeach; ?>
 </select>
 <?php elseif ($spec['type'] === 'datetime'): ?>

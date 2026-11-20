@@ -11,6 +11,7 @@ final class Response
         private string $body = '',
         private int $status = 200,
         private array $headers = [],
+        private ?string $filePath = null,
     ) {
     }
 
@@ -32,6 +33,23 @@ final class Response
         }
 
         return new self('', $status, ['Location' => $path]);
+    }
+
+    /**
+     * Streams a file as a download. The caller has already checked that the path is inside the upload directory.
+     * Always "attachment" so a browser never renders uploaded content in the site's origin.
+     */
+    public static function file(string $path, string $downloadName, string $mime): self
+    {
+        $fallback = trim((string) preg_replace('/[^A-Za-z0-9._-]+/', '_', $downloadName), '._') ?: 'download';
+
+        return new self('', 200, [
+            'Content-Type' => $mime,
+            'Content-Length' => (string) filesize($path),
+            'Content-Disposition' => 'attachment; filename="' . $fallback . '"; filename*=UTF-8\'\'' . rawurlencode($downloadName),
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, max-age=0, must-revalidate',
+        ], $path);
     }
 
     public function withHeader(string $name, string $value): self
@@ -73,7 +91,11 @@ final class Response
             }
         }
         if (!$headOnly) {
-            echo $this->body;
+            if ($this->filePath !== null) {
+                readfile($this->filePath);
+            } else {
+                echo $this->body;
+            }
         }
     }
 }
