@@ -15,13 +15,13 @@ foreach ((array) app()->config()->get('navigation', []) as $item) {
 <div class="portrait">
 <div class="portrait__ring portrait__ring--outer"><span class="dot dot--amber"></span><span class="dot dot--cyan"></span></div>
 <div class="portrait__ring portrait__ring--inner"><span class="dot dot--glow"></span></div>
-<img class="portrait__img" src="<?= e(asset('images/professor.jpg')) ?>" alt="<?= e(t('profile.photo_alt')) ?>" width="460" height="460">
+<img class="portrait__img" src="<?= e(asset('images/professor.jpg')) ?>" alt="<?= e(profile('full_name')) ?>" width="460" height="460">
 </div>
 
-<p class="hero__name"><?= e(t('profile.full_name')) ?></p>
-<p class="hero__role"><?= e(t('profile.position')) ?></p>
+<p class="hero__name"><?= e(profile('full_name')) ?></p>
+<p class="hero__role"><?= e(profile('position')) ?></p>
 <div class="chips">
-<span class="chip chip--accent"><?= e(t('profile.degree')) ?></span>
+<span class="chip chip--accent"><?= e(profile('degree')) ?></span>
 <span class="chip"><?= e(t('site.university')) ?></span>
 </div>
 </div>

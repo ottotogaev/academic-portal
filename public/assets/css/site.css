@@ -381,3 +381,12 @@ button:disabled { cursor: not-allowed; }
 .group-title { margin: 44px 0 0; font-size: 20px; font-weight: 800; color: var(--cyan); }
 .group-title:first-child { margin-top: 0; }
 .card__action { color: var(--cyan); font-weight: 700; }
+
+/* ---------- Contact form feedback, profile ---------- */
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.form__ok, .form__error { margin: 0 0 18px; padding: 12px 14px; border-radius: 10px; font-size: 14.5px; line-height: 1.5; }
+.form__ok { background: rgba(79, 227, 209, .1); border: 1px solid rgba(79, 227, 209, .45); color: #B6F5EC; }
+.form__error { background: rgba(255, 90, 90, .1); border: 1px solid rgba(255, 90, 90, .45); color: #FFB4B4; }
+.field__error { margin: 6px 0 0; color: #FFB4B4; font-size: 13.5px; }
+.field--error input, .field--error textarea { border-color: rgba(255, 90, 90, .7); }
+.profile__sub { margin: 28px 0 8px; font-size: 18px; font-weight: 800; color: var(--cyan); }

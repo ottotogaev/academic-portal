@@ -10,6 +10,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Slug;
 use App\Core\Time;
+use App\Services\ContactForm;
 
 /**
  * Public pages. Phase 1 renders the layout and empty states; content comes from services in Phase 3-4.
@@ -102,7 +103,88 @@ final class PageController extends Controller
 
     public function contact(): Response
     {
-        return $this->page('contact', 'public/contact');
+        return $this->contactPage();
+    }
+
+    /**
+     * Stores a contact message. Order: spam traps, validation, rate limit, save. Failures never reveal which
+     * rule fired to a bot; humans get a clear message and their text back.
+     */
+    public function contactSubmit(Request $request): Response
+    {
+        if (!$this->app->translator()->available($this->app->locale())) {
+            throw new HttpException(404);
+        }
+        $session = $this->app->session();
+        $logger = $this->app->logger();
+
+        // Honeypot: a field no human sees. Pretend it worked so the bot learns nothing.
+        if (trim($request->input('website')) !== '') {
+            $logger->warning('Contact rejected', ['reason' => 'honeypot']);
+            $session->set('contact_sent', true);
+
+            return Response::redirect(url('contact'), 303);
+        }
+        // Time trap: the form must have been on screen for a moment.
+        $shown = (int) $session->get('contact_t', 0);
+        if ($shown === 0 || time() - $shown < self::MIN_FILL_SECONDS) {
+            $logger->warning('Contact rejected', ['reason' => 'too_fast']);
+
+            return $this->contactPage($this->contactValues($request), [], t('contact.too_fast'), 429);
+        }
+
+        $result = ContactForm::validate($request);
+        if ($result['errors'] !== []) {
+            return $this->contactPage($result['values'], $result['errors'], null, 422);
+        }
+
+        $client = hash('sha256', $request->ip);
+        try {
+            $feedback = $this->app->feedback();
+            $now = time();
+            if ($feedback->countSince(Time::nowUtc($now - 3600), $client) >= self::MAX_PER_CLIENT_HOUR
+                || $feedback->countSince(Time::nowUtc($now - 86400)) >= self::MAX_PER_DAY) {
+                $logger->warning('Contact rejected', ['reason' => 'rate_limit']);
+
+                return $this->contactPage($result['values'], [], t('contact.rate_limited'), 429)->withHeader('Retry-After', '3600');
+            }
+            $v = $result['values'];
+            $feedback->create($v['name'], $v['email'], $v['subject'] === '' ? null : $v['subject'], $v['message'], $client, Time::nowUtc($now));
+        } catch (\Throwable $e) {
+            $logger->error('Contact message could not be saved', ['message' => $e->getMessage()]);
+
+            return $this->contactPage($result['values'], [], t('contact.failed'), 503);
+        }
+
+        $session->set('contact_sent', true);
+
+        return Response::redirect(url('contact'), 303);
+    }
+
+    private const MIN_FILL_SECONDS = 2;
+    private const MAX_PER_CLIENT_HOUR = 3;
+    private const MAX_PER_DAY = 100;
+
+    /** @return array{name:string,email:string,subject:string,message:string} */
+    private function contactValues(Request $request): array
+    {
+        return ['name' => $request->input('name'), 'email' => $request->input('email'), 'subject' => $request->input('subject'), 'message' => $request->input('message')];
+    }
+
+    /** @param array<string,string> $values @param array<string,string> $errors */
+    private function contactPage(array $values = [], array $errors = [], ?string $formError = null, int $status = 200): Response
+    {
+        $sent = false;
+        if ($this->app->translator()->available($this->app->locale())) {
+            $session = $this->app->session();
+            $session->set('contact_t', time());
+            $sent = (bool) $session->pull('contact_sent', false);
+        }
+
+        $response = $this->page('contact', 'public/contact', data: ['values' => $values, 'errors' => $errors, 'formError' => $formError, 'sent' => $sent]);
+
+        // The page carries a per-session token: never cache it.
+        return new Response($response->body(), $status, $response->headers() + ['Cache-Control' => 'no-store']);
     }
 
     /** @param array<string,mixed> $data */

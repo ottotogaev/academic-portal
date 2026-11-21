@@ -18,6 +18,7 @@ final class DashboardController extends AdminController
 
         return $this->page('admin/dashboard', [
             'counts' => $counts,
+            'newMessages' => $this->app->feedback()->countNew(),
             'title' => t('admin.dashboard.title'),
             'username' => $this->app->auth()->username() ?? '',
         ]);

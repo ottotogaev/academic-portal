@@ -1,5 +1,5 @@
 <?php
-/** @var string $username @var array<string,int> $counts */
+/** @var string $username @var array<string,int> $counts @var int $newMessages */
 ?>
 <section class="admin-card">
 <p class="admin-card__eyebrow"><?= e(t('admin.title')) ?></p>
@@ -7,6 +7,7 @@
 <p class="admin-card__text"><?= e(t('admin.dashboard.welcome', ['name' => $username])) ?></p>
 <p class="admin-card__text admin-card__text--muted"><?= e(t('admin.dashboard.soon')) ?></p>
 <div class="admin-tiles">
+<a class="admin-tile" href="/admin/feedback"><span class="admin-tile__n"><?= (int) $newMessages ?></span><span><?= e(t('admin.feedback.new_count')) ?></span></a>
 <?php foreach ($counts as $type => $count): ?>
 <a class="admin-tile" href="/admin/<?= e($type) ?>"><span class="admin-tile__n"><?= (int) $count ?></span><span><?= e(t('admin.types.' . $type)) ?></span></a>
 <?php endforeach; ?>

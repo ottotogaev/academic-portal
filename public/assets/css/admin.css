@@ -50,3 +50,13 @@
 .admin-tile { display: flex; flex-direction: column; gap: 6px; padding: 16px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; font-weight: 700; }
 .admin-tile:hover { border-color: var(--cyan, #4FE3D1); }
 .admin-tile__n { font-family: var(--mono); font-size: 26px; color: var(--cyan, #4FE3D1); }
+
+/* ---------- Inbox, profile ---------- */
+.badge { display: inline-block; min-width: 20px; padding: 1px 7px; border-radius: 99px; background: var(--amber, #FFB04A); color: #1b1200; font-size: 12px; font-weight: 800; text-align: center; }
+.admin-table tr.is-new td { background: rgba(255, 176, 74, .06); }
+.admin-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 16px 0; }
+.admin-facts dt { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted, #8FA6AD); }
+.admin-facts dd { margin: 4px 0 0; font-weight: 700; word-break: break-word; }
+.admin-message { padding: 18px; margin: 12px 0 20px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.admin-inline { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 18px; }
+.admin-inline select { padding: 10px 12px; background: var(--bg); color: inherit; border: 1px solid var(--line-2); border-radius: 10px; font: inherit; }

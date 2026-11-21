@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Controllers\Admin\AuthController;
 use App\Controllers\Admin\ContentController;
 use App\Controllers\Admin\DashboardController;
+use App\Controllers\Admin\FeedbackController;
+use App\Controllers\Admin\ProfileController;
 use App\Controllers\Public\PageController;
 use App\Core\App;
 use App\Core\Request;
@@ -31,6 +33,15 @@ return static function (Router $router): void {
     $router->get('/admin/password', [AuthController::class, 'showPassword'], [AdminAuthMiddleware::class]);
     $router->post('/admin/password', [AuthController::class, 'changePassword'], [AdminAuthMiddleware::class, CsrfMiddleware::class]);
 
+    $guard = [AdminAuthMiddleware::class];
+    $post = [AdminAuthMiddleware::class, CsrfMiddleware::class];
+    $router->get('/admin/feedback', [FeedbackController::class, 'index'], $guard);
+    $router->get('/admin/feedback/{id}', [FeedbackController::class, 'show'], $guard);
+    $router->post('/admin/feedback/{id}/status', [FeedbackController::class, 'status'], $post);
+    $router->post('/admin/feedback/{id}/delete', [FeedbackController::class, 'destroy'], $post);
+    $router->get('/admin/profile', [ProfileController::class, 'show'], $guard);
+    $router->post('/admin/profile', [ProfileController::class, 'save'], $post);
+
     // Content management: literal routes per type from config/content.php.
     foreach (array_keys((array) App::current()->config()->get('content', [])) as $type) {
         $guard = [AdminAuthMiddleware::class];
@@ -50,6 +61,7 @@ return static function (Router $router): void {
         $router->get($pattern, [PageController::class, $item['key']], [LocaleMiddleware::class]);
     }
 
+    $router->post('/{locale}/contact', [PageController::class, 'contactSubmit'], [LocaleMiddleware::class, CsrfMiddleware::class]);
     $router->get('/{locale}/materials/{id}/download', [PageController::class, 'download'], [LocaleMiddleware::class]);
     $router->get('/{locale}/news/{slug}', [PageController::class, 'newsItem'], [LocaleMiddleware::class]);
 };

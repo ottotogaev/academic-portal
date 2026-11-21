@@ -17,6 +17,8 @@ final class App
     private ?Session $session = null;
     private ?Csrf $csrf = null;
     private ?Auth $auth = null;
+    /** @var array<string,array<string,string>> */
+    private array $profileCache = [];
 
     public function __construct(
         private string $basePath,
@@ -84,6 +86,54 @@ final class App
             $def,
             (string) $this->config->get('app.default_locale', 'uz')
         );
+    }
+
+    public function feedback(): \App\Services\FeedbackRepository
+    {
+        return new \App\Services\FeedbackRepository($this->database()->pdo());
+    }
+
+    public function profileRepository(): \App\Services\ProfileRepository
+    {
+        return new \App\Services\ProfileRepository($this->database()->pdo(), (string) $this->config->get('app.default_locale', 'uz'));
+    }
+
+    /**
+     * Teacher profile for the current locale, as plain strings. The confirmed data in the language file is used
+     * until a profile has been saved in the admin; after that the database is the source (empty = hidden).
+     *
+     * @return array<string,string> keys: full_name position degree specialization biography education experience email phone
+     */
+    public function profile(): array
+    {
+        if (isset($this->profileCache[$this->locale])) {
+            return $this->profileCache[$this->locale];
+        }
+        $tr = fn (string $key): string => $this->translator->get($this->locale, $key);
+        $profile = [
+            'full_name' => $tr('profile.full_name'), 'position' => $tr('profile.position'), 'degree' => $tr('profile.degree'),
+            'specialization' => $tr('profile.specialization'), 'biography' => '', 'education' => '', 'experience' => '',
+            'email' => '', 'phone' => '',
+        ];
+        try {
+            $row = $this->profileRepository()->get();
+        } catch (\Throwable $e) {
+            $this->logger->error('Profile lookup failed', ['message' => $e->getMessage()]);
+            $row = null;
+        }
+        if ($row !== null) {
+            $profile['email'] = (string) ($row['email'] ?? '');
+            $profile['phone'] = (string) ($row['phone'] ?? '');
+            $t = $row['translations'][$this->locale] ?? null;
+            if ($t !== null) {
+                foreach (['full_name', 'position', 'specialization', 'biography', 'education', 'experience'] as $field) {
+                    $profile[$field] = (string) ($t[$field] ?? '');
+                }
+                $profile['degree'] = (string) ($t['academic_degree'] ?? '');
+            }
+        }
+
+        return $this->profileCache[$this->locale] = $profile;
     }
 
     public function uploads(): \App\Services\UploadStorage

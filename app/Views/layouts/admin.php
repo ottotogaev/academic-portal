@@ -25,6 +25,16 @@
 <?php foreach (array_keys((array) app()->config()->get('content', [])) as $navType): ?>
 <a href="/admin/<?= e($navType) ?>"><?= e(t('admin.types.' . $navType)) ?></a>
 <?php endforeach; ?>
+<?php
+$newMessages = 0;
+try {
+    $newMessages = app()->feedback()->countNew();
+} catch (\Throwable) {
+    // The inbox badge is a convenience; a database problem must not break the page.
+}
+?>
+<a href="/admin/feedback"><?= e(t('admin.feedback.title')) ?><?php if ($newMessages > 0): ?> <span class="badge"><?= (int) $newMessages ?></span><?php endif; ?></a>
+<a href="/admin/profile"><?= e(t('admin.profile.title')) ?></a>
 </nav>
 <?php endif; ?>
 <main class="admin__main">

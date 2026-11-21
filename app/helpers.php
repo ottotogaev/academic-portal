@@ -97,3 +97,9 @@ function format_bytes(int $bytes): string
 
     return number_format($bytes / 1048576, 1, '.', '') . ' MB';
 }
+
+/** One field of the teacher profile for the current locale ('' = not set, so nothing is shown). */
+function profile(string $key): string
+{
+    return App::current()->profile()[$key] ?? '';
+}

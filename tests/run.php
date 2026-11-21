@@ -12,6 +12,8 @@ use App\Core\Auth;
 use App\Core\Config;
 use App\Core\Csrf;
 use App\Core\Session;
+use App\Services\ContactForm;
+use App\Services\ProfileForm;
 use App\Services\UploadStorage;
 use App\Core\Env;
 use App\Core\ErrorHandler;
@@ -361,6 +363,27 @@ check('download header cannot be injected through the file name', !str_contains(
 $rq = Request::create('POST', '/x', [], [], '', ['file' => ['name' => 'a', 'error' => 0], 'multi' => ['name' => ['a'], 'error' => [0]]]);
 check('Request::file returns single entries only', $rq->file('file') !== null && $rq->file('multi') === null && $rq->file('none') === null);
 check('format_bytes', format_bytes(500) === '500 B' && format_bytes(2048) === '2 KB' && format_bytes(1572864) === '1.5 MB');
+
+echo "Contact and profile forms\n";
+$cf = static fn (array $post): array => ContactForm::validate(Request::create('POST', '/uz/contact', [], $post));
+$good = ['name' => 'Ali Valiyev', 'email' => 'ali@example.uz', 'subject' => 'Savol', 'message' => 'Assalomu alaykum, savolim bor.'];
+check('valid message passes', $cf($good)['errors'] === []);
+check('subject is optional', $cf(['subject' => ''] + $good)['errors'] === []);
+check('name required', isset($cf(['name' => ' '] + $good)['errors']['name']));
+check('email required and validated', isset($cf(['email' => ''] + $good)['errors']['email']) && ($cf(['email' => 'not-an-email'] + $good)['errors']['email'] ?? '') === 'email');
+check('email header injection refused', isset($cf(['email' => "a@b.uz\r\nBcc: x@y.z"] + $good)['errors']['email']));
+check('message too short / too long', ($cf(['message' => 'qisqa'] + $good)['errors']['message'] ?? '') === 'message_short' && ($cf(['message' => str_repeat('a', 5001)] + $good)['errors']['message'] ?? '') === 'too_long');
+check('control characters refused in single-line fields', ($cf(["name" => "A\x00li"] + $good)['errors']['name'] ?? '') === 'invalid' && ($cf(['subject' => "a\nb"] + $good)['errors']['subject'] ?? '') === 'invalid');
+check('newlines allowed in the message', $cf(['message' => "Birinchi qator\nIkkinchi qator"] + $good)['errors'] === []);
+check('array input is ignored (treated as empty)', isset($cf(['name' => ['x']] + $good)['errors']['name']));
+check('values are trimmed and kept for re-display', $cf(['name' => '  Ali  '] + $good)['values']['name'] === 'Ali');
+
+$pf = static fn (array $post): array => ProfileForm::validate(Request::create('POST', '/admin/profile', [], $post), ['uz']);
+$pgood = ['uz__full_name' => 'Samatov S.B.', 'email' => '', 'phone' => ''];
+check('profile: only the name is required', $pf($pgood)['errors'] === [] && $pf($pgood)['base'] === ['email' => null, 'phone' => null]);
+check('profile: missing name refused', ($pf(['uz__full_name' => ''])['errors']['uz__full_name'] ?? '') === 'required');
+check('profile: email and phone validated', ($pf(['email' => 'x'] + $pgood)['errors']['email'] ?? '') === 'email' && ($pf(['phone' => 'abc'] + $pgood)['errors']['phone'] ?? '') === 'phone' && $pf(['phone' => '+998 (90) 123-45-67', 'email' => 'a@b.uz'] + $pgood)['errors'] === []);
+check('profile: long text limit', ($pf(['uz__biography' => str_repeat('a', 20001)] + $pgood)['errors']['uz__biography'] ?? '') === 'too_long');
 
 echo "Error handling\n";
 $prod = ErrorHandler::render(new RuntimeException('SECRET-DB-PASSWORD at /home/claude/app/X.php'), false);
