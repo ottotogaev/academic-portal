@@ -35,7 +35,7 @@ $dateColumn = $dated ?? 'updated_at';
 <td><?= e(\App\Core\Time::format(isset($row[$dateColumn]) ? (string) $row[$dateColumn] : null, $zone, 'd.m.Y H:i')) ?: '—' ?></td>
 <td><div class="admin-table__actions">
 <a class="admin-link" href="/admin/<?= e($type) ?>/<?= (int) $row['id'] ?>/edit"><?= e(t('admin.list.edit')) ?></a>
-<form method="post" action="/admin/<?= e($type) ?>/<?= (int) $row['id'] ?>/delete" onsubmit="return confirm(<?= e(json_encode(t('admin.list.confirm_delete'), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>)">
+<form method="post" action="/admin/<?= e($type) ?>/<?= (int) $row['id'] ?>/delete" data-confirm="<?= e(t('admin.list.confirm_delete')) ?>">
 <?= csrf_field() ?>
 <button class="admin-link admin-link--button admin-link--danger" type="submit"><?= e(t('admin.list.delete')) ?></button>
 </form>

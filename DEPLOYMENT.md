@@ -1,153 +1,159 @@
-Deployment Guide — Eskiz Shared Hosting
-1. Target Environment
-Hosting provider: Eskiz.
+# Deployment Guide: Eskiz shared hosting (cPanel)
 
-Control panel: cPanel.
+Target: `sanatsamatov.uz`, PHP 8.1, MySQL, no separate document root. The hosting account may hold other sites: never touch them, and give this application its own database and database user.
 
-Runtime: PHP 8.1.
+## 1. What you need before starting
 
-Confirmed PHP extensions:
-- pdo_mysql
-- fileinfo
-- mbstring
-The exact hosting environment must be inspected before deployment.
-2. Isolation Requirement
-The hosting account already contains another working website.
+| Item | Where to find it |
+|---|---|
+| cPanel login | Eskiz |
+| Account folder (for example `/home/ACCOUNT`) | cPanel, right column "Home Directory" |
+| The folder that serves `sanatsamatov.uz` (the document root) | cPanel, "Domains" |
+| PHP 8.1 with `pdo_mysql`, `mbstring`, `fileinfo` | cPanel, "Select PHP Version" |
+| An empty MySQL database and its own user | cPanel, "MySQL Databases" (section 3) |
+| A free SSL certificate | cPanel, "SSL/TLS Status" (AutoSSL / Let's Encrypt) |
 
-Academic Portal must be isolated.
+## 2. Layout
 
-Required separate resources:
-- Domain or subdomain.
-- Document root.
-- MySQL database.
-- MySQL user.
-- Application environment file.
-- Upload storage.
-- Logs.
-Never modify the existing website.
-3. Document Root
-Recommended layout:
+The application lives **outside** the public folder. Only the contents of `public/` are web accessible.
+
+```
 /home/ACCOUNT/
-├── academic-portal/
-│   ├── app/
-│   ├── bootstrap/
-│   ├── config/
-│   ├── database/
-│   ├── routes/
-│   ├── storage/
-│   ├── vendor/
-│   └── .env
-└── public_html/
-    └── academic.example.uz/
-        ├── index.php
-        ├── .htaccess
-        └── assets/
-The exact directory structure depends on the hosting account.
+├── academic-portal/          <- application (private): app/ bootstrap/ config/ database/ routes/ storage/ bin/ .env
+└── public_html/              <- the document root of sanatsamatov.uz (yours may be a subfolder)
+    ├── index.php             <- from public.zip, one line edited (section 5)
+    ├── .htaccess
+    └── assets/
+```
 
-The domain document root must point to the application's public/ directory whenever the hosting configuration allows it.
+If the document root of the domain is a different folder, use that folder instead of `public_html`. Do not put `.env`, `storage/` or `app/` inside it.
 
-Do not expose the project root.
+## 3. Database (cPanel, "MySQL Databases")
 
-If the provider does not allow a separate document root, design a secure alternative before deployment. Do not place sensitive files in a publicly accessible directory.
-4. Environment Variables
-Example .env.example:
-APP_ENV=production
-APP_DEBUG=false
-APP_URL=https://example.uz
-APP_DEFAULT_LOCALE=uz
+1. Create a database, for example `ACCOUNT_portal`.
+2. Create a user with a long random password (use the generator, store it in a password manager).
+3. Add the user to the database with **all privileges on that database only**.
+4. Note the three names. cPanel prefixes them with your account name.
+5. Check the MySQL version (phpMyAdmin front page). MySQL 5.6.5+ or any MariaDB works.
 
-DB_HOST=localhost
-DB_PORT=3306
-DB_DATABASE=academic_portal
-DB_USERNAME=academic_portal_user
-DB_PASSWORD=replace_with_secure_password
+## 4. Build the upload files (on a computer or in the project session)
 
-SESSION_SECURE=true
-UPLOAD_MAX_SIZE=10485760
-Use actual values only in the private .env file.
+```
+bash bin/build-release.sh
+```
 
-Never commit .env.
-5. Database Setup
-1. Create a new MySQL database.
-2. Create a new database user.
-3. Generate a strong password.
-4. Grant the user privileges only on the new database.
-5. Configure .env.
-6. Run migrations against the new database.
-7. Verify database connectivity.
-Do not reuse the existing website's database or credentials.
-6. PHP Configuration
-Verify:
-- PHP 8.1 is selected.
-- PDO MySQL is enabled.
-- Fileinfo is enabled.
-- Mbstring is enabled.
-- Upload size limits are appropriate.
-- Maximum execution time is appropriate.
-- Memory limit is sufficient.
-Do not assume the hosting environment matches local development.
-7. Apache Rewrite
-If Apache rewrite is available, configure the public directory to route application requests through index.php.
+This writes `release/app.zip` (private part) and `release/public.zip` (public part). They contain no tests, no `.env`, no uploads and no logs.
 
-Protect private directories from direct web access.
+## 5. First deployment
 
-Test:
-- Homepage.
-- Locale-prefixed routes.
-- Static assets.
-- 404 handling.
-- Admin login.
-8. File Permissions
-Use the minimum permissions needed.
+1. **File Manager**: create `/home/ACCOUNT/academic-portal/`, upload `app.zip` there and extract it. Delete the zip afterwards.
+2. Upload `public.zip` into the domain's document root and extract it. Delete the zip afterwards.
+3. Edit `index.php` in the document root: change the single line
 
-Do not make all project directories writable.
+   ```php
+   $basePath = dirname(__DIR__);
+   ```
+   to the absolute path of the private folder, for example
+   ```php
+   $basePath = '/home/ACCOUNT/academic-portal';
+   ```
+4. Create `/home/ACCOUNT/academic-portal/.env` from `.env.example` (File Manager, "Edit"):
 
-Only required storage directories should be writable by the application.
+   ```
+   APP_ENV=production
+   APP_DEBUG=false
+   APP_URL=https://sanatsamatov.uz
+   APP_DEFAULT_LOCALE=uz
+   APP_TIMEZONE=Asia/Tashkent
 
-Never use broad permissions such as 777 as a routine workaround.
-9. Admin Initialization
-Create the initial administrator securely.
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_DATABASE=ACCOUNT_portal
+   DB_USERNAME=ACCOUNT_portal_user
+   DB_PASSWORD=the-long-random-password
 
-Requirements:
-- No public registration.
-- No hardcoded default production password.
-- Use a secure password hash.
-- Remove or disable any temporary initialization mechanism after use.
-10. HTTPS
-Enable the hosting provider's SSL certificate.
+   SESSION_SECURE=true
+   UPLOAD_MAX_SIZE=10485760
+   ```
+   Set the file permission to `600` (File Manager, "Permissions"). Never put real values in `.env.example` and never commit `.env`.
+5. Permissions: folders `750` (or `755` if the host requires it), files `640` (or `644`). `storage/` and everything below it must be writable by PHP.
+6. **PHP** (cPanel, "Select PHP Version"): choose 8.1, enable `pdo_mysql`, `mbstring`, `fileinfo`. Under "Options" set `upload_max_filesize` and `post_max_size` to at least `12M` if 10 MB uploads are wanted (the app uses the smaller of its own limit and PHP's).
+7. **SSL**: in "SSL/TLS Status" run AutoSSL for `sanatsamatov.uz` (and `www` if used). Wait until `https://sanatsamatov.uz` opens without a warning.
+8. **Force HTTPS**: in the document root's `.htaccess` remove the `#` in front of the three lines marked "Enable after the SSL certificate is active". Reload the site over `http://`: it must redirect to `https://`.
 
-Verify:
-- HTTPS loads correctly.
-- HTTP redirects to HTTPS.
-- Secure session cookies work.
-- Public assets use HTTPS.
-11. Production Verification
-Before launch:
-- Verify database connection.
-- Verify migrations.
-- Verify admin authentication.
-- Verify all public routes.
-- Verify all locales.
-- Verify uploads and downloads.
-- Verify comment moderation.
-- Verify feedback privacy.
-- Verify CSRF protection.
-- Verify access restrictions.
-- Verify production error handling.
-- Verify backups.
-12. Rollback
-Before deployment:
-1. Back up the new application's database.
-2. Back up the new application's files.
-3. Record the deployed version.
-4. Prepare a rollback procedure.
-Rollback must not affect the existing website.
-13. Unknown Hosting Details
-Do not assume:
-- SSH is enabled.
-- Composer is available.
-- MySQL version.
-- Apache rewrite configuration.
-- Custom document root support.
-- Exact filesystem paths.
-Inspect and verify each requirement before relying on it.
+### Database tables and the administrator: with a terminal
+
+If cPanel has "Terminal" (or you have SSH):
+
+```
+cd ~/academic-portal
+php bin/migrate.php --yes
+php bin/create-admin.php YOUR_LOGIN        # asks for the password (min 12 characters), nothing is shown
+php bin/check.php
+```
+
+### Database tables and the administrator: without a terminal (cPanel "Cron Jobs")
+
+Cron can run PHP commands once. In "Cron Jobs" add a job set to run every minute (use the "Once Per Minute" preset) with this command, **one job at a time**, and delete each job after the e-mailed output (or `~/cron.log`) shows it worked:
+
+1. Tables:
+   ```
+   cd /home/ACCOUNT/academic-portal && php bin/migrate.php --yes > ~/cron.log 2>&1
+   ```
+2. Administrator (temporary password, you change it in the panel right away):
+   ```
+   cd /home/ACCOUNT/academic-portal && ADMIN_PASSWORD='Temporary-Long-Pass-123' php bin/create-admin.php YOUR_LOGIN >> ~/cron.log 2>&1
+   ```
+3. Self-check:
+   ```
+   cd /home/ACCOUNT/academic-portal && php bin/check.php >> ~/cron.log 2>&1
+   ```
+4. Delete all three jobs and `~/cron.log` (File Manager). The temporary password appears in the cron settings, so change it first: sign in at `https://sanatsamatov.uz/admin`, open "Parolni o‘zgartirish".
+
+If the cron `php` is not 8.1, use the full path shown in "Select PHP Version", for example `/opt/cpanel/ea-php81/root/usr/bin/php`.
+
+## 6. Verification checklist
+
+Run `php bin/check.php` (terminal or cron). It must end with `Ready`. Then in a browser:
+
+- [ ] `https://sanatsamatov.uz/` opens, the padlock is valid, `http://` redirects to `https://`.
+- [ ] `https://sanatsamatov.uz/health` shows exactly `ok`.
+- [ ] `/.env`, `/app/Core/App.php`, `/config/app.php`, `/storage/` and `/database/` all give 404 or 403, never content.
+- [ ] A made-up address such as `/uz/nope` shows the site's own "Sahifa topilmadi" page, with no technical text.
+- [ ] `/admin` redirects to `/admin/login`; wrong passwords show one generic message; the right one opens the panel.
+- [ ] Add a test news item, publish it, see it on `/uz/news`, then delete it.
+- [ ] Upload a small PDF as a material, download it from `/uz/materials`, delete it.
+- [ ] Send a message from `/uz/contact` (wait a few seconds after the page opens), read it in the admin inbox, delete it.
+- [ ] Open the site on a phone.
+- [ ] Fill in the profile (`/admin/profile`) including e-mail and phone if they should be public.
+
+## 7. Updating later
+
+1. Back up the database first (cPanel "Backup" or phpMyAdmin "Export") and the `storage/uploads/` folder.
+2. Build new archives (section 4). Upload `app.zip` over the private folder and extract with overwrite. **Do not overwrite `.env` or `storage/uploads/`**; the archive contains neither.
+3. Upload `public.zip` over the document root. Keep your edited `index.php` (extract everything except `index.php`, or edit the line again) and your `.htaccess` HTTPS lines.
+4. Apply new tables: `php bin/migrate.php --yes` (or the cron way) and run `php bin/check.php`.
+
+## 8. Backups
+
+- Database: weekly export plus one before every update.
+- `storage/uploads/materials/`: copy it whenever materials are added, since the database only holds their names.
+- Keep at least one copy off the hosting account.
+
+## 9. Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| Blank page or the generic "Xatolik yuz berdi" page | Read the newest file in `storage/logs/` (File Manager). Most often a wrong `$basePath` line or wrong `.env` values |
+| Every page except `/` is 404 | `.htaccess` was not uploaded (hidden file): enable "Show Hidden Files" in File Manager |
+| Cannot sign in, the page just reloads | `SESSION_SECURE=true` on a site that is still opened over `http://`; finish step 7 first |
+| "Fayl juda katta" for small files | PHP `upload_max_filesize` / `post_max_size` too low (step 6) |
+| Uploads fail to save | `storage/uploads/` not writable (step 5) |
+| Fonts look different | Check that `assets/fonts/` was uploaded with `public.zip` |
+
+## 10. Rules this deployment must keep
+
+- Never edit or reuse anything belonging to another site on the account.
+- `.env`, `storage/`, uploads and logs stay outside the public folder.
+- `APP_DEBUG=false` in production; the app ignores `true` there, but keep it off.
+- Do not leave temporary cron jobs, test accounts or test content behind.

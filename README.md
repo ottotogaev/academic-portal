@@ -2,7 +2,7 @@
 
 Multilingual (uz / ru / en) academic website for a university professor. PHP 8.1, MySQL, PDO, lightweight MVC, Apache shared hosting. No Composer dependencies and no frontend build step.
 
-Current state: **Phase 1 (infrastructure) with the approved public design, Phase 2 (administrator login) and Phase 3 (content database schema) and Phase 4 (content management for topics, news, assignments, practical and laboratory lessons) Phase 5a (materials with file uploads) and Phase 5b (contact form, admin inbox, profile editing).** Not built yet: ru/en translations, self-hosted fonts, deployment guide for Eskiz, e-mail notification of new messages, profile photo upload.
+Current state: **Phase 1 (infrastructure) with the approved public design, Phase 2 (administrator login) and Phase 3 (content database schema) and Phase 4 (content management for topics, news, assignments, practical and laboratory lessons) Phase 5a (materials with file uploads) and Phase 5b (contact form, admin inbox, profile editing) and Phase 6 (self-hosted fonts, CSP, deployment tooling).** Not built yet: ru/en translations, e-mail notification of new messages, profile photo upload.
 
 ## Local setup
 
@@ -54,7 +54,8 @@ storage/           logs, cache, uploads (never public)
 - **Contact form and inbox:** `POST /uz/contact` needs the session CSRF token (the page is `no-store`). Traps: a hidden honeypot field (a bot sees a normal success and nothing is stored), a 2-second minimum fill time, and a limit of 3 messages per client per hour and 100 per day overall (HTTP 429). Input is validated (name, e-mail, message 10-5000 characters, no control characters) and stored as plain text; only a SHA-256 of the sender address is kept. Messages are read in `/admin/feedback` (status new / in progress / processed, delete); a badge in the admin menu counts new ones. No e-mail is sent: the inbox is the only channel.
 - **Teacher profile:** `/admin/profile` edits name, position, degree, specialization, biography, education, experience, e-mail and phone. Until the first save, the confirmed data in `app/Lang/uz.php` is shown; after it, the database is the source and an empty field is hidden on the public pages. E-mail and phone appear on the Contact page only when set. The photo is still the static file `public/assets/images/professor.jpg`.
 - **SQL portability:** the new tables use no `DEFAULT CURRENT_TIMESTAMP`, JSON or CHECK constraints; timestamps (UTC) are written by PHP, so they work on old MySQL and MariaDB alike. (`0001` still uses `DEFAULT CURRENT_TIMESTAMP`, which needs MySQL 5.6.5+; check the Eskiz version before deploying.)
-- **Fonts** (Manrope, IBM Plex Mono) are loaded from Google Fonts for now; self-hosting is a Phase 6 option.
+- **Fonts** (Manrope, IBM Plex Mono; latin, latin-ext, cyrillic) are self-hosted in `public/assets/fonts/` under the SIL OFL; the site makes no third-party requests. A Content-Security-Policy locks scripts, styles, fonts and images to the site's own origin; HSTS is sent only when `APP_URL` is https.
+- **Deployment tooling:** `bash bin/build-release.sh` builds `release/app.zip` + `release/public.zip`; `php bin/check.php` verifies PHP, `.env`, folders, database, migrations and the administrator (see `DEPLOYMENT.md`).
 
 ## Deployment notes
 

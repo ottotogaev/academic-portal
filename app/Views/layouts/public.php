@@ -29,9 +29,7 @@ $noindex ??= false;
 <?php endif; ?>
 <meta name="theme-color" content="#070E13">
 <link rel="icon" type="image/svg+xml" href="<?= e(asset('images/favicon.svg')) ?>">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap">
+<link rel="preload" href="<?= e(asset('fonts/manrope-latin.woff2')) ?>" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="<?= e(asset('css/site.css')) ?>">
 </head>
 <body>

@@ -10,3 +10,4 @@ storage/uploads/*
 .DS_Store
 storage/sessions/*
 !storage/sessions/.gitkeep
+release

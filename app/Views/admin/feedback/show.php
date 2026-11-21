@@ -31,7 +31,7 @@ $id = (int) $message['id'];
 </select>
 <button class="btn btn--sm" type="submit"><?= e(t('admin.form.save')) ?></button>
 </form>
-<form method="post" action="/admin/feedback/<?= $id ?>/delete" onsubmit="return confirm(<?= e(json_encode(t('admin.list.confirm_delete'), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>)">
+<form method="post" action="/admin/feedback/<?= $id ?>/delete" data-confirm="<?= e(t('admin.list.confirm_delete')) ?>">
 <?= csrf_field() ?>
 <button class="admin-link admin-link--button admin-link--danger" type="submit"><?= e(t('admin.list.delete')) ?></button>
 </form>

@@ -13,7 +13,7 @@
 <meta name="robots" content="noindex">
 <title>Academic Portal</title>
 <link rel="icon" type="image/svg+xml" href="<?= e(asset('images/favicon.svg')) ?>">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&amp;display=swap">
+<link rel="preload" href="<?= e(asset('fonts/manrope-latin.woff2')) ?>" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="<?= e(asset('css/site.css')) ?>">
 </head>
 <body>

@@ -235,7 +235,14 @@ final class App
             'X-Frame-Options' => 'SAMEORIGIN',
             'Referrer-Policy' => 'strict-origin-when-cross-origin',
             'Permissions-Policy' => 'camera=(), microphone=(), geolocation=()',
+            // Everything (fonts, CSS, scripts) is served from this origin. Inline styles are used by the SVG animations;
+            // there are no inline scripts, so scripts stay locked to 'self'.
+            'Content-Security-Policy' => "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'",
         ];
+        // HSTS only when the site is configured for HTTPS (a plain-HTTP site must never send it).
+        if (str_starts_with((string) $this->config->get('app.url', ''), 'https://')) {
+            $defaults['Strict-Transport-Security'] = 'max-age=15552000';
+        }
         foreach ($defaults as $name => $value) {
             if (!$response->hasHeader($name)) {
                 $response = $response->withHeader($name, $value);

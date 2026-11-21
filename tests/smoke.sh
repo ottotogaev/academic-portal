@@ -93,6 +93,12 @@ expect_status "dashboard requires login" 302 "$BASE/admin/dashboard"
 [ "$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/admin/dashboard")" = "$BASE/admin/login" ] && ok "dashboard redirects to login" || bad "dashboard redirect target"
 expect_status "password page requires login" 302 "$BASE/admin/password"
 expect_status "logout without session/token" 302 -X POST "$BASE/admin/logout"
+for p in dashboard password profile feedback feedback/1 topics topics/new topics/1/edit news news/new news/1/edit assignments practical laboratory categories materials materials/new materials/1/edit; do
+  expect_status "GET /admin/$p needs login" 302 "$BASE/admin/$p"
+done
+for p in password profile topics topics/1 topics/1/delete news news/1 materials materials/1/delete feedback/1/status feedback/1/delete logout; do
+  expect_status "POST /admin/$p needs login" 302 -X POST -d 'x=1' "$BASE/admin/$p"
+done
 expect_status "login page" 200 "$BASE/admin/login"
 expect_body "login form has csrf field" 'name="_token"' "$BASE/admin/login"
 expect_no_body "login page is not a public page (no site nav)" 'aria-current="page"' "$BASE/admin/login"
@@ -110,12 +116,20 @@ expect_status "session files not reachable" 404 "$BASE/storage/sessions/.gitkeep
 
 echo "Headers"
 hdrs=$(curl -s -D - -o /dev/null "$BASE/uz/")
-for h in "X-Content-Type-Options: nosniff" "X-Frame-Options: SAMEORIGIN" "Referrer-Policy: strict-origin-when-cross-origin" "Permissions-Policy:"; do
+for h in "Content-Security-Policy: default-src 'self'" "X-Content-Type-Options: nosniff" "X-Frame-Options: SAMEORIGIN" "Referrer-Policy: strict-origin-when-cross-origin" "Permissions-Policy:"; do
   echo "$hdrs" | grep -qiF "$h" && ok "header $h" || bad "missing header $h"
 done
 echo "$hdrs" | grep -qi '^X-Powered-By' && bad "X-Powered-By exposed" || ok "no X-Powered-By"
 allow=$(curl -s -D - -o /dev/null -X POST "$BASE/uz/" | grep -i '^Allow:' | tr -d '\r')
 [ -n "$allow" ] && ok "405 sends Allow ($allow)" || bad "405 missing Allow"
+
+hdrs_html=$(curl -s "$BASE/uz/" "$BASE/admin/login")
+echo "$hdrs_html" | grep -qE 'fonts\.googleapis|fonts\.gstatic' && bad "page still loads Google Fonts" || ok "no external font requests"
+echo "$hdrs_html" | grep -qE '<script[^>]*>[^<]' && bad "inline script present (CSP would block it)" || ok "no inline scripts"
+echo "$hdrs_html" | grep -qE ' on[a-z]+="' && bad "inline event handler present" || ok "no inline event handlers"
+echo "$hdrs" | grep -qi '^Strict-Transport-Security' && bad "HSTS sent over plain http" || ok "no HSTS on an http site"
+for f in manrope-latin.woff2 manrope-latin-ext.woff2 manrope-cyrillic.woff2 ibm-plex-mono-latin-500.woff2; do expect_status "font $f served" 200 "$BASE/assets/fonts/$f"; done
+expect_status "admin.js served" 200 "$BASE/assets/js/admin.js"
 
 echo "Escaping"
 expect_no_body "query string never reflected" "<script>alert(1)</script>" "$BASE/uz/?q=<script>alert(1)</script>"
