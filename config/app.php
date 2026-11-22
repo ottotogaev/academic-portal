@@ -16,7 +16,8 @@ return [
     // Zone used to read and show dates entered in the admin; the database always stores UTC.
     'timezone' => (string) Env::get('APP_TIMEZONE', 'Asia/Tashkent'),
     'session_secure' => Env::bool('SESSION_SECURE', true),
-    // The contact form (page, menu item, call to action, inbox) is switched on at the very end of the project.
+    // The contact form accepts messages only when this is true (switched on at the very end of the project).
+    // The Contact page itself is always visible; with the flag off its form is disabled.
     'contact_enabled' => Env::bool('FEATURE_CONTACT', false),
     'upload_max_size' => (int) Env::get('UPLOAD_MAX_SIZE', '10485760'),
 ];

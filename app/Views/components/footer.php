@@ -1,6 +1,5 @@
 <?php
 /** @var bool $footerCta show the "send a message" call to action (home page only) */
-$footerCta = $footerCta && contact_enabled();
 $host = (string) parse_url((string) app()->config()->get('app.url'), PHP_URL_HOST);
 ?>
 <footer class="site-footer">

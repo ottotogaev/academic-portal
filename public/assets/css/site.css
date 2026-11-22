@@ -316,6 +316,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 .field input { height: 48px; }
 .field textarea { padding-block: 14px; resize: vertical; }
 .form__fields:disabled { opacity: .55; }
+.form__note--top { margin: 0 0 20px; padding: 12px 14px; border: 1px solid var(--line, #d9d9d9); border-radius: 6px; }
 .form__note { margin-top: 20px; font-size: 14.5px; color: var(--muted); }
 
 /* ---------- Buttons ---------- */

@@ -129,7 +129,7 @@ Run `php bin/check.php` (terminal or cron). It must end with `Ready`. Then in a 
 - [ ] Switch languages (UZ / RU / EN): menu, headline and footer change, and the page stays the same.
 - [ ] Only when `FEATURE_CONTACT=true`: send a message from `/uz/contact` (wait a few seconds after the page opens), read it in the admin inbox, delete it.
 - [ ] Open the site on a phone.
-- [ ] Fill in the profile (`/admin/profile`) for every language. E-mail and phone are shown only on the contact page, which is off until `FEATURE_CONTACT=true`.
+- [ ] Fill in the profile (`/admin/profile`) for every language. E-mail and phone are shown on the contact page, whose form stays disabled until `FEATURE_CONTACT=true`.
 
 ## 7. Updating later
 
@@ -166,5 +166,5 @@ Run `php bin/check.php` (terminal or cron). It must end with `Ready`. Then in a 
 
 1. In `.env` set `FEATURE_CONTACT=true`.
 2. Fill in e-mail and phone in `/admin/profile` if they should be public.
-3. Check: the menu shows "Aloqa" / "Контакты" / "Contact", `/uz/contact` opens, a test message arrives in `/admin/feedback`, then delete it.
-4. To switch it off again, set `FEATURE_CONTACT=false`: the page and inbox disappear, saved messages stay in the database.
+3. Check: the form on `/uz/contact` becomes active (it is disabled before), a test message arrives in `/admin/feedback`, then delete it.
+4. To switch it off again, set `FEATURE_CONTACT=false`: the form is disabled again, the page stays visible, saved messages stay in the database.

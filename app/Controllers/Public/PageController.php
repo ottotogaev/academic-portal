@@ -115,7 +115,7 @@ final class PageController extends Controller
      */
     public function contactSubmit(Request $request): Response
     {
-        if (!$this->app->translator()->available($this->app->locale())) {
+        if (!contact_enabled() || !$this->app->translator()->available($this->app->locale())) {
             throw new HttpException(404);
         }
         $session = $this->app->session();
@@ -178,7 +178,7 @@ final class PageController extends Controller
     private function contactPage(array $values = [], array $errors = [], ?string $formError = null, int $status = 200): Response
     {
         $sent = false;
-        if ($this->app->translator()->available($this->app->locale())) {
+        if (contact_enabled() && $this->app->translator()->available($this->app->locale())) {
             $session = $this->app->session();
             $session->set('contact_t', time());
             $sent = (bool) $session->pull('contact_sent', false);

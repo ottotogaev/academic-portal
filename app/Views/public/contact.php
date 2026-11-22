@@ -38,24 +38,29 @@ $err = static fn (string $key): string => isset($errors[$key])
 </div>
 </div>
 
+<?php $live = contact_enabled(); ?>
 <form class="form" method="post" action="<?= e(url('contact')) ?>" novalidate>
+<?php if ($live): ?>
 <?= csrf_field() ?>
+<?php else: ?>
+<p class="form__note form__note--top" role="status"><?= e(t('contact.unavailable')) ?></p>
+<?php endif; ?>
 <?php if ($sent): ?>
 <p class="form__ok" role="status"><?= e(t('contact.sent')) ?></p>
 <?php endif; ?>
 <?php if ($formError !== null): ?>
 <p class="form__error" role="alert"><?= e($formError) ?></p>
 <?php endif; ?>
-<div class="form__fields">
+<fieldset class="form__fields"<?= $live ? '' : ' disabled' ?>>
 <div class="form__pair">
 <div class="field<?= isset($errors['name']) ? ' field--error' : '' ?>"><label for="f-name"><?= e(t('contact.name')) ?></label><input id="f-name" name="name" type="text" autocomplete="name" maxlength="120" required value="<?= e($values['name'] ?? '') ?>"><?= $err('name') ?></div>
 <div class="field<?= isset($errors['email']) ? ' field--error' : '' ?>"><label for="f-email"><?= e(t('contact.sender_email')) ?></label><input id="f-email" name="email" type="email" autocomplete="email" maxlength="190" required value="<?= e($values['email'] ?? '') ?>"><?= $err('email') ?></div>
 </div>
 <div class="field<?= isset($errors['subject']) ? ' field--error' : '' ?>"><label for="f-subject"><?= e(t('contact.subject')) ?></label><input id="f-subject" name="subject" type="text" maxlength="190" value="<?= e($values['subject'] ?? '') ?>"><?= $err('subject') ?></div>
 <div class="field<?= isset($errors['message']) ? ' field--error' : '' ?>"><label for="f-message"><?= e(t('contact.message')) ?></label><textarea id="f-message" name="message" rows="6" maxlength="5000" required><?= e($values['message'] ?? '') ?></textarea><?= $err('message') ?></div>
-<div class="hp" aria-hidden="true"><label>Website <input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
-<div><button class="btn" type="submit"><?= e(t('contact.submit')) ?></button></div>
-</div>
+<?php if ($live): ?><div class="hp" aria-hidden="true"><label>Website <input name="website" type="text" tabindex="-1" autocomplete="off"></label></div><?php endif; ?>
+<div><button class="btn" type="submit"<?= $live ? '' : ' disabled aria-disabled="true"' ?>><?= e(t('contact.submit')) ?></button></div>
+</fieldset>
 <p class="form__note"><?= e(t('contact.privacy')) ?></p>
 </form>
 </div>

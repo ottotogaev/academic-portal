@@ -28,14 +28,12 @@
 <?php
 $newMessages = 0;
 try {
-    $newMessages = contact_enabled() ? app()->feedback()->countNew() : 0;
+    $newMessages = app()->feedback()->countNew();
 } catch (\Throwable) {
     // The inbox badge is a convenience; a database problem must not break the page.
 }
 ?>
-<?php if (contact_enabled()): ?>
 <a href="/admin/feedback"><?= e(t('admin.feedback.title')) ?><?php if ($newMessages > 0): ?> <span class="badge"><?= (int) $newMessages ?></span><?php endif; ?></a>
-<?php endif; ?>
 <a href="/admin/profile"><?= e(t('admin.profile.title')) ?></a>
 </nav>
 <?php endif; ?>

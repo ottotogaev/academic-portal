@@ -245,13 +245,7 @@ check('header links language switcher to same page', str_contains($html, 'href="
 $footerOff = $app->view()->render('components/footer', ['footerCta' => false]);
 $footerOn = $app->view()->render('components/footer', ['footerCta' => true]);
 check('footer without CTA has no contact button', !str_contains($footerOff, 'href="/uz/contact"'));
-check('contact feature is off by default: no CTA even when requested, no menu item', !contact_enabled() && !str_contains($footerOn, 'href="/uz/contact"') && !in_array('contact', array_column($nav, 'key'), true));
-putenv('FEATURE_CONTACT=true');
-$_ENV['FEATURE_CONTACT'] = 'true';
-$navOn = (new Config($basePath . '/config'))->get('navigation');
-check('contact menu item appears when FEATURE_CONTACT=true', in_array('contact', array_column($navOn, 'key'), true));
-putenv('FEATURE_CONTACT');
-unset($_ENV['FEATURE_CONTACT']);
+check('contact CTA and menu item are visible regardless of the flag', !contact_enabled() && str_contains($footerOn, 'href="/uz/contact"') && in_array('contact', array_column($nav, 'key'), true));
 
 $flat = static function (array $a, string $p = '') use (&$flat): array {
     $o = [];
