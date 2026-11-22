@@ -245,7 +245,41 @@ check('header links language switcher to same page', str_contains($html, 'href="
 $footerOff = $app->view()->render('components/footer', ['footerCta' => false]);
 $footerOn = $app->view()->render('components/footer', ['footerCta' => true]);
 check('footer without CTA has no contact button', !str_contains($footerOff, 'href="/uz/contact"'));
-check('footer with CTA links to contact', str_contains($footerOn, 'href="/uz/contact"'));
+check('contact feature is off by default: no CTA even when requested, no menu item', !contact_enabled() && !str_contains($footerOn, 'href="/uz/contact"') && !in_array('contact', array_column($nav, 'key'), true));
+putenv('FEATURE_CONTACT=true');
+$_ENV['FEATURE_CONTACT'] = 'true';
+$navOn = (new Config($basePath . '/config'))->get('navigation');
+check('contact menu item appears when FEATURE_CONTACT=true', in_array('contact', array_column($navOn, 'key'), true));
+putenv('FEATURE_CONTACT');
+unset($_ENV['FEATURE_CONTACT']);
+
+$flat = static function (array $a, string $p = '') use (&$flat): array {
+    $o = [];
+    foreach ($a as $k => $v) {
+        is_array($v) ? $o += $flat($v, $p . $k . '.') : $o[$p . $k] = $v;
+    }
+
+    return $o;
+};
+$uzKeys = $flat(array_diff_key($uz, ['admin' => 1]));
+foreach (['ru', 'en'] as $lang) {
+    $other = $flat(require $basePath . '/app/Lang/' . $lang . '.php');
+    check("{$lang}.php has exactly the keys of uz.php", array_keys($other) === array_keys($uzKeys), implode(',', array_merge(array_keys(array_diff_key($uzKeys, $other)), array_keys(array_diff_key($other, $uzKeys)))));
+    $empty = array_keys(array_filter($other, static fn ($v): bool => trim((string) $v) === ''));
+    check("{$lang}.php has no empty strings", $empty === [], implode(',', $empty));
+    $same = array_keys(array_filter($other, static fn ($v, $k): bool => $v === $uzKeys[$k] && !in_array($k, ['profile.full_name', 'profile.photo_alt'], true), ARRAY_FILTER_USE_BOTH));
+    check("{$lang}.php is really translated (no string copied from Uzbek)", $same === [], implode(',', $same));
+    $placeholders = true;
+    foreach ($other as $k => $v) {
+        preg_match_all('/\{[a-z_]+\}/', (string) $v, $m1);
+        preg_match_all('/\{[a-z_]+\}/', (string) $uzKeys[$k], $m2);
+        $placeholders = $placeholders && $m1[0] === $m2[0];
+    }
+    check("{$lang}.php keeps the same {placeholders}", $placeholders);
+}
+$t3 = new Translator($basePath . '/app/Lang', ['uz', 'ru', 'en']);
+check('ru and en are available locales now', $t3->available('ru') && $t3->available('en'));
+
 
 echo "Sessions, CSRF and admin authentication\n";
 $session = new Session($tmp . '/sessions', false, false);

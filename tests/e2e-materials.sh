@@ -95,4 +95,8 @@ curl -s "$BASE/uz/materials" | grep -q 'group-title">Ma‘ruzalar' && ok "public
 code -X POST --data-urlencode "_token=$T" "$BASE/admin/categories/$CID/delete" >/dev/null
 curl -s -b "$JAR" "$BASE/admin/categories" | grep -q 'ishlatilmoqda' && ok "category in use cannot be deleted" || bad "category deleted while used"
 
+echo "Home page"
+curl -s "$BASE/uz/" | grep -q 'Ma‘ruza matni' && ok "home lists the newest materials" || bad "home materials"
+curl -s "$BASE/uz/" | grep -q 'PDF · ' && ok "home shows type and size" || bad "home material meta"
+
 echo; echo "$pass passed, $fail failed"; [ "$fail" -eq 0 ]

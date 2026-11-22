@@ -35,10 +35,12 @@ return static function (Router $router): void {
 
     $guard = [AdminAuthMiddleware::class];
     $post = [AdminAuthMiddleware::class, CsrfMiddleware::class];
-    $router->get('/admin/feedback', [FeedbackController::class, 'index'], $guard);
-    $router->get('/admin/feedback/{id}', [FeedbackController::class, 'show'], $guard);
-    $router->post('/admin/feedback/{id}/status', [FeedbackController::class, 'status'], $post);
-    $router->post('/admin/feedback/{id}/delete', [FeedbackController::class, 'destroy'], $post);
+    if (contact_enabled()) {
+        $router->get('/admin/feedback', [FeedbackController::class, 'index'], $guard);
+        $router->get('/admin/feedback/{id}', [FeedbackController::class, 'show'], $guard);
+        $router->post('/admin/feedback/{id}/status', [FeedbackController::class, 'status'], $post);
+        $router->post('/admin/feedback/{id}/delete', [FeedbackController::class, 'destroy'], $post);
+    }
     $router->get('/admin/profile', [ProfileController::class, 'show'], $guard);
     $router->post('/admin/profile', [ProfileController::class, 'save'], $post);
 
@@ -61,7 +63,9 @@ return static function (Router $router): void {
         $router->get($pattern, [PageController::class, $item['key']], [LocaleMiddleware::class]);
     }
 
-    $router->post('/{locale}/contact', [PageController::class, 'contactSubmit'], [LocaleMiddleware::class, CsrfMiddleware::class]);
+    if (contact_enabled()) {
+        $router->post('/{locale}/contact', [PageController::class, 'contactSubmit'], [LocaleMiddleware::class, CsrfMiddleware::class]);
+    }
     $router->get('/{locale}/materials/{id}/download', [PageController::class, 'download'], [LocaleMiddleware::class]);
     $router->get('/{locale}/news/{slug}', [PageController::class, 'newsItem'], [LocaleMiddleware::class]);
 };

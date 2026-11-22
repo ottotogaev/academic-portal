@@ -57,7 +57,7 @@ has "list links to the slug page" 'href="/uz/news/yangi-oquv-yili-boshlandi"' pu
 has "paragraphs rendered" '<p>Ikkinchi abzats &lt;b&gt;teg emas&lt;/b&gt;.</p>' pub "$BASE/uz/news/yangi-oquv-yili-boshlandi"
 hasnt "HTML in body is escaped, never executed" '<b>teg emas</b>' pub "$BASE/uz/news/yangi-oquv-yili-boshlandi"
 has "detail has own title" '<title>Yangi o‘quv yili boshlandi · ' pub "$BASE/uz/news/yangi-oquv-yili-boshlandi"
-[ "$(code "$BASE/ru/news/yangi-oquv-yili-boshlandi")" = 200 ] && has "ru detail shows unavailable notice" "Перевод" pub "$BASE/ru/news/yangi-oquv-yili-boshlandi" || bad "ru detail"
+[ "$(code "$BASE/ru/news/yangi-oquv-yili-boshlandi")" = 404 ] && ok "news without a ru translation is 404 in ru" || bad "ru detail without translation"
 [ "$(code "$BASE/uz/news/Bad_Slug")" = 404 ] && ok "malformed slug is 404" || bad "malformed slug"
 [ "$(post /admin/news "$T" --data-urlencode uz__title=Boshqa --data-urlencode uz__body=b --data-urlencode slug=yangi-oquv-yili-boshlandi --data-urlencode status=draft)" = 422 ] && ok "duplicate slug rejected" || bad "duplicate slug"
 # same title again gets a unique generated slug
@@ -102,5 +102,36 @@ post /admin/assignments/$AID/delete "$TT" >/dev/null
 [ "$(post /admin/news/999999/delete "$TT")" = 404 ] && ok "deleting a missing item is 404" || bad "missing delete"
 [ "$(code "$BASE/admin/news/abc/edit")" = 404 ] && ok "non-numeric id is 404" || bad "bad id"
 get "$BASE/admin/dashboard" | grep -q 'admin-tile' && ok "dashboard shows content counts" || bad "dashboard tiles"
+
+echo "Translations (ru, en) and the home page"
+T=$(tok "$BASE/admin/news/new")
+get "$BASE/admin/news/new" | grep -q 'name="ru__title"' && get "$BASE/admin/news/new" | grep -q 'name="en__title"' && ok "admin form has Russian and English sections" || bad "no ru/en sections"
+LOC=$(locationof "$T" /admin/news --data-urlencode "uz__title=Uch tilli yangilik" --data-urlencode "uz__body=O‘zbekcha matn" --data-urlencode "ru__title=Новость на трёх языках" --data-urlencode "ru__body=Русский текст" --data-urlencode "en__title=Three language news" --data-urlencode "en__body=English text" --data-urlencode status=published)
+NID3=$(echo "$LOC" | grep -oE '[0-9]+/edit' | cut -d/ -f1)
+SL=uch-tilli-yangilik
+has "uz list shows the Uzbek title" "Uch tilli yangilik" pub "$BASE/uz/news"
+has "ru list shows the Russian title" "Новость на трёх языках" pub "$BASE/ru/news"
+has "en list shows the English title" "Three language news" pub "$BASE/en/news"
+hasnt "ru list does not show the Uzbek title" "Uch tilli yangilik" pub "$BASE/ru/news"
+has "ru detail page in Russian" "Русский текст" pub "$BASE/ru/news/$SL"
+has "en detail page in English" "English text" pub "$BASE/en/news/$SL"
+has "ru detail has translated back link" "Все новости" pub "$BASE/ru/news/$SL"
+has "same slug in every language (switcher works)" 'href="/en/news/'$SL'"' pub "$BASE/ru/news/$SL"
+# an item with only an Uzbek translation is hidden in the other languages
+locationof "$T" /admin/news --data-urlencode "uz__title=Faqat o‘zbekcha" --data-urlencode "uz__body=Matn" --data-urlencode status=published >/dev/null
+hasnt "item without a ru translation is not listed in ru" "Faqat o‘zbekcha" pub "$BASE/ru/news"
+hasnt "item without an en translation is not listed in en" "Faqat o‘zbekcha" pub "$BASE/en/news"
+[ "$(code "$BASE/ru/news/faqat-ozbekcha")" = 404 ] && ok "its ru detail page is 404" || bad "ru detail without translation"
+# partial translation: a title without a body is refused
+T=$(tok "$BASE/admin/news/$NID3/edit")
+[ "$(post /admin/news/$NID3 "$T" --data-urlencode "uz__title=Uch tilli yangilik" --data-urlencode "uz__body=x" --data-urlencode "ru__title=Только заголовок" --data-urlencode "ru__body=" --data-urlencode slug=$SL --data-urlencode status=published)" = 422 ] && ok "half-filled Russian translation refused" || bad "partial translation accepted"
+# removing the Russian title deletes the Russian translation
+post /admin/news/$NID3 "$T" --data-urlencode "uz__title=Uch tilli yangilik" --data-urlencode "uz__body=x" --data-urlencode "ru__title=" --data-urlencode "ru__body=" --data-urlencode "en__title=Three language news" --data-urlencode "en__body=English text" --data-urlencode slug=$SL --data-urlencode status=published >/dev/null
+hasnt "emptied Russian translation disappears" "Новость на трёх языках" pub "$BASE/ru/news"
+has "English translation untouched" "Three language news" pub "$BASE/en/news"
+# the home page lists the latest published news
+has "home shows the latest news (uz)" "Uch tilli yangilik" pub "$BASE/uz/"
+has "home shows English news in English" "Three language news" pub "$BASE/en/"
+hasnt "home hides drafts" "Kelajak yangiligi" pub "$BASE/uz/"
 
 echo; echo "$pass passed, $fail failed"; [ "$fail" -eq 0 ]

@@ -1,4 +1,8 @@
 <?php
+/**
+ * @var list<array<string,mixed>> $latestNews
+ * @var list<array<string,mixed>> $latestMaterials
+ */
 $quick = ['about', 'topics', 'assignments', 'practical', 'laboratory', 'materials'];
 $paths = [];
 foreach ((array) app()->config()->get('navigation', []) as $item) {
@@ -57,14 +61,30 @@ foreach ((array) app()->config()->get('navigation', []) as $item) {
 <h2 class="col__title"><?= e(t('home.news_title')) ?></h2>
 <a class="link-accent" href="<?= e(url($paths['news'] ?? '')) ?>"><?= e(t('home.all')) ?></a>
 </div>
+<?php if ($latestNews === []): ?>
 <p class="empty"><?= e(t('home.news_empty')) ?></p>
+<?php else: ?>
+<ul class="mini-list">
+<?php foreach ($latestNews as $item): ?>
+<li><a href="<?= e(url('news/' . $item['slug'])) ?>"><span class="mini-list__meta"><?= e(format_date((string) $item['published_at'])) ?></span><span class="mini-list__title"><?= e((string) $item['title']) ?></span></a></li>
+<?php endforeach; ?>
+</ul>
+<?php endif; ?>
 </div>
 <div class="col col--amber">
 <div class="col__head">
 <h2 class="col__title"><?= e(t('home.materials_title')) ?></h2>
 <a class="link-accent link-accent--amber" href="<?= e(url($paths['materials'] ?? '')) ?>"><?= e(t('home.all')) ?></a>
 </div>
+<?php if ($latestMaterials === []): ?>
 <p class="empty"><?= e(t('home.materials_empty')) ?></p>
+<?php else: ?>
+<ul class="mini-list">
+<?php foreach ($latestMaterials as $item): ?>
+<li><a href="<?= e(url('materials/' . (int) $item['id'] . '/download')) ?>"><span class="mini-list__meta"><?= e(strtoupper((string) pathinfo((string) $item['original_filename'], PATHINFO_EXTENSION))) ?> · <?= e(format_bytes((int) $item['file_size'])) ?></span><span class="mini-list__title"><?= e((string) $item['title']) ?></span></a></li>
+<?php endforeach; ?>
+</ul>
+<?php endif; ?>
 </div>
 </div>
 </section>

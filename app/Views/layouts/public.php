@@ -27,6 +27,13 @@ $noindex ??= false;
 <?php if ($canonical !== ''): ?>
 <link rel="canonical" href="<?= e($canonical) ?>">
 <?php endif; ?>
+<?php if (!$noindex && $pageKey !== ''): ?>
+<?php $siteUrl = rtrim((string) app()->config()->get('app.url', ''), '/'); ?>
+<?php foreach ((array) app()->config()->get('app.locales', []) as $altLocale): ?>
+<link rel="alternate" hreflang="<?= e($altLocale) ?>" href="<?= e($siteUrl . url($pagePath, $altLocale)) ?>">
+<?php endforeach; ?>
+<link rel="alternate" hreflang="x-default" href="<?= e($siteUrl . url($pagePath, (string) app()->config()->get('app.default_locale', 'uz'))) ?>">
+<?php endif; ?>
 <meta name="theme-color" content="#070E13">
 <link rel="icon" type="image/svg+xml" href="<?= e(asset('images/favicon.svg')) ?>">
 <link rel="preload" href="<?= e(asset('fonts/manrope-latin.woff2')) ?>" as="font" type="font/woff2" crossorigin>

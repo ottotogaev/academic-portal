@@ -20,7 +20,10 @@ final class PageController extends Controller
 {
     public function home(): Response
     {
-        return $this->page('home', 'public/home', footerCta: true);
+        return $this->page('home', 'public/home', footerCta: true, data: [
+            'latestNews' => array_slice($this->items('news'), 0, 3),
+            'latestMaterials' => array_slice($this->items('materials'), 0, 4),
+        ]);
     }
 
     public function about(): Response

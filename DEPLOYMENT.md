@@ -74,6 +74,9 @@ This writes `release/app.zip` (private part) and `release/public.zip` (public pa
 
    SESSION_SECURE=true
    UPLOAD_MAX_SIZE=10485760
+
+   # Contact page, menu item and inbox stay OFF until the end of the project (then set true).
+   FEATURE_CONTACT=false
    ```
    Set the file permission to `600` (File Manager, "Permissions"). Never put real values in `.env.example` and never commit `.env`.
 5. Permissions: folders `750` (or `755` if the host requires it), files `640` (or `644`). `storage/` and everything below it must be writable by PHP.
@@ -123,9 +126,10 @@ Run `php bin/check.php` (terminal or cron). It must end with `Ready`. Then in a 
 - [ ] `/admin` redirects to `/admin/login`; wrong passwords show one generic message; the right one opens the panel.
 - [ ] Add a test news item, publish it, see it on `/uz/news`, then delete it.
 - [ ] Upload a small PDF as a material, download it from `/uz/materials`, delete it.
-- [ ] Send a message from `/uz/contact` (wait a few seconds after the page opens), read it in the admin inbox, delete it.
+- [ ] Switch languages (UZ / RU / EN): menu, headline and footer change, and the page stays the same.
+- [ ] Only when `FEATURE_CONTACT=true`: send a message from `/uz/contact` (wait a few seconds after the page opens), read it in the admin inbox, delete it.
 - [ ] Open the site on a phone.
-- [ ] Fill in the profile (`/admin/profile`) including e-mail and phone if they should be public.
+- [ ] Fill in the profile (`/admin/profile`) for every language. E-mail and phone are shown only on the contact page, which is off until `FEATURE_CONTACT=true`.
 
 ## 7. Updating later
 
@@ -157,3 +161,10 @@ Run `php bin/check.php` (terminal or cron). It must end with `Ready`. Then in a 
 - `.env`, `storage/`, uploads and logs stay outside the public folder.
 - `APP_DEBUG=false` in production; the app ignores `true` there, but keep it off.
 - Do not leave temporary cron jobs, test accounts or test content behind.
+
+## 11. Turning the contact page on (last step of the project)
+
+1. In `.env` set `FEATURE_CONTACT=true`.
+2. Fill in e-mail and phone in `/admin/profile` if they should be public.
+3. Check: the menu shows "Aloqa" / "Контакты" / "Contact", `/uz/contact` opens, a test message arrives in `/admin/feedback`, then delete it.
+4. To switch it off again, set `FEATURE_CONTACT=false`: the page and inbox disappear, saved messages stay in the database.

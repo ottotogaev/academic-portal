@@ -103,3 +103,9 @@ function profile(string $key): string
 {
     return App::current()->profile()[$key] ?? '';
 }
+
+/** Whether the contact form feature is switched on (FEATURE_CONTACT). */
+function contact_enabled(): bool
+{
+    return (bool) App::current()->config()->get('app.contact_enabled', false);
+}

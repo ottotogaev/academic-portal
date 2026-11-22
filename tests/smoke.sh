@@ -4,10 +4,11 @@
 set -u
 cd "$(dirname "$0")/.."
 
+CONTACT="${FEATURE_CONTACT:-false}"
 PORT="${PORT:-8765}"
 BASE="http://127.0.0.1:${PORT}"
 LOGDIR="$(mktemp -d)"
-APP_ENV=local APP_DEBUG=false SESSION_SECURE=false APP_URL="$BASE" php -S "127.0.0.1:${PORT}" -t public >"$LOGDIR/server.log" 2>&1 &
+APP_ENV=local APP_DEBUG=false SESSION_SECURE=false FEATURE_CONTACT="${FEATURE_CONTACT:-false}" APP_URL="$BASE" php -S "127.0.0.1:${PORT}" -t public >"$LOGDIR/server.log" 2>&1 &
 SERVER_PID=$!
 trap 'kill $SERVER_PID 2>/dev/null; rm -rf "$LOGDIR"' EXIT
 for _ in $(seq 1 30); do curl -s -o /dev/null "$BASE/health" && break; sleep 0.2; done
@@ -39,7 +40,7 @@ expect_status "health" 200 "$BASE/health"
 [ "$(body "$BASE/health")" = "ok" ] && ok "health body is exactly 'ok'" || bad "health body"
 expect_status "root redirects" 302 "$BASE/"
 [ "$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/")" = "$BASE/uz/" ] && ok "root redirects to /uz/" || bad "root redirect target"
-for p in "" about topics news assignments practical-lessons laboratory-lessons materials contact; do
+for p in "" about topics news assignments practical-lessons laboratory-lessons materials; do
   expect_status "GET /uz/$p" 200 "$BASE/uz/$p"
 done
 expect_status "trailing slash /uz/about/" 200 "$BASE/uz/about/"
@@ -57,12 +58,19 @@ expect_status "config not reachable" 404 "$BASE/config/app.php"
 echo "Content (uz)"
 expect_body "home headline" "Neft va gazni" "$BASE/uz/"
 expect_body "home has professor name" "Samatov San&#039;at Baxtiyorovich" "$BASE/uz/"
-expect_body "home has contact CTA" "Xabar yuborish" "$BASE/uz/"
+if [ "$CONTACT" = true ]; then
+  expect_body "home has contact CTA" "Xabar yuborish" "$BASE/uz/"
+  expect_body "menu has Aloqa" '>Aloqa<' "$BASE/uz/"
+else
+  expect_no_body "contact CTA hidden while the feature is off" "Xabar yuborish" "$BASE/uz/"
+  expect_no_body "no Aloqa in the menu while the feature is off" '>Aloqa<' "$BASE/uz/"
+  expect_status "contact page is 404 while the feature is off" 404 "$BASE/uz/contact"
+  expect_status "contact POST is 404 while the feature is off" 404 -X POST -d 'x=1' "$BASE/uz/contact"
+  expect_status "admin inbox is 404 while the feature is off" 404 "$BASE/admin/feedback"
+fi
 expect_no_body "no 'Asosiy fanlar' section" "Asosiy fanlar" "$BASE/uz/"
 expect_no_body "no 'Fanlar' menu item" ">Fanlar<" "$BASE/uz/"
 expect_no_body "no 'Kafedra' footer block" "Kafedra</p>" "$BASE/uz/"
-expect_no_body "no placeholder markers" "[kiritiladi]" "$BASE/uz/contact"
-expect_no_body "contact page has no footer CTA button" 'class="btn" href="/uz/contact"' "$BASE/uz/contact"
 expect_no_body "news page has no footer CTA button" 'class="btn" href="/uz/contact"' "$BASE/uz/news"
 expect_body "news empty state" "Hozircha e‘lon qilingan yangiliklar yo‘q." "$BASE/uz/news"
 expect_body "nav marks current page" 'href="/uz/news" aria-current="page"' "$BASE/uz/news"
@@ -70,22 +78,46 @@ expect_body "canonical URL" "<link rel=\"canonical\" href=\"$BASE/uz/news\">" "$
 expect_body "html lang" '<html lang="uz">' "$BASE/uz/"
 expect_body "404 page rendered in layout" "Sahifa topilmadi" "$BASE/uz/nope"
 expect_body "404 is noindex" 'name="robots" content="noindex"' "$BASE/uz/nope"
-expect_body "contact form posts to the locale URL" '<form class="form" method="post" action="/uz/contact"' "$BASE/uz/contact"
-expect_body "contact form has csrf token" 'name="_token"' "$BASE/uz/contact"
-expect_body "contact form has honeypot" 'name="website"' "$BASE/uz/contact"
-expect_no_body "contact form is not disabled" "disabled" "$BASE/uz/contact"
-curl -s -D - -o /dev/null "$BASE/uz/contact" | grep -qi '^Cache-Control: no-store' && ok "contact page is no-store" || bad "contact page cacheable"
-expect_status "contact POST without token rejected" 400 -X POST -d 'name=Ali&email=a@b.uz&message=salom dunyo hammaga' "$BASE/uz/contact"
-expect_status "contact POST to unavailable locale is 404/400" 400 -X POST -d 'name=x' "$BASE/ru/contact"
+if [ "$CONTACT" = true ]; then
+  expect_status "contact page" 200 "$BASE/uz/contact"
+  expect_no_body "no placeholder markers" "[kiritiladi]" "$BASE/uz/contact"
+  expect_body "contact form posts to the locale URL" '<form class="form" method="post" action="/uz/contact"' "$BASE/uz/contact"
+  expect_body "contact form has csrf token" 'name="_token"' "$BASE/uz/contact"
+  expect_body "contact form has honeypot" 'name="website"' "$BASE/uz/contact"
+  expect_no_body "contact form is not disabled" "disabled" "$BASE/uz/contact"
+  curl -s -D - -o /dev/null "$BASE/uz/contact" | grep -qi '^Cache-Control: no-store' && ok "contact page is no-store" || bad "contact page cacheable"
+  expect_status "contact POST without token rejected" 400 -X POST -d 'name=Ali&email=a@b.uz&message=salom dunyo hammaga' "$BASE/uz/contact"
+  expect_status "contact POST to another locale also needs the token" 400 -X POST -d 'name=x' "$BASE/ru/contact"
+fi
 expect_status "css served" 200 "$BASE/assets/css/site.css"
 expect_status "professor photo served" 200 "$BASE/assets/images/professor.jpg"
 
-echo "Unavailable translations"
-expect_status "ru home" 200 "$BASE/ru/"
-expect_body "ru shows notice" "Перевод на этот язык пока недоступен." "$BASE/ru/"
-expect_no_body "ru does not reuse Uzbek content" "Neft va gazni" "$BASE/ru/"
-expect_body "en shows notice" "This language is not available yet." "$BASE/en/about"
-expect_body "ru is noindex" 'name="robots" content="noindex"' "$BASE/ru/"
+echo "Russian and English"
+for L in ru en; do expect_status "GET /$L/ pages" 200 "$BASE/$L/"; done
+for p in about topics news assignments practical-lessons laboratory-lessons materials; do
+  expect_status "GET /ru/$p" 200 "$BASE/ru/$p"
+  expect_status "GET /en/$p" 200 "$BASE/en/$p"
+done
+expect_body "ru html lang" '<html lang="ru">' "$BASE/ru/"
+expect_body "en html lang" '<html lang="en">' "$BASE/en/"
+expect_body "ru headline" "Процессы и аппараты" "$BASE/ru/"
+expect_body "en headline" "Processes and equipment for" "$BASE/en/"
+expect_body "ru name in Cyrillic" "Саматов Санъат Бахтиёрович" "$BASE/ru/"
+expect_body "en university" "University of Economics and Pedagogy" "$BASE/en/"
+expect_body "ru menu translated" ">Новости<" "$BASE/ru/"
+expect_body "en menu translated" ">News<" "$BASE/en/"
+expect_body "ru empty state" "Опубликованных новостей пока нет." "$BASE/ru/news"
+expect_body "en empty state" "No news has been published yet." "$BASE/en/news"
+expect_no_body "ru page has no Uzbek headline" "Neft va gazni" "$BASE/ru/"
+expect_no_body "en page has no Uzbek headline" "Neft va gazni" "$BASE/en/about"
+expect_no_body "ru menu has no Uzbek labels" "Yangiliklar" "$BASE/ru/"
+expect_body "ru 404 translated" "Страница не найдена" "$BASE/ru/nope"
+expect_body "en 404 translated" "Page not found" "$BASE/en/nope"
+expect_no_body "ru is indexable" 'name="robots" content="noindex"' "$BASE/ru/"
+expect_body "language switcher keeps the page" 'href="/en/news"' "$BASE/ru/news"
+expect_body "hreflang alternates" '<link rel="alternate" hreflang="ru" href="' "$BASE/uz/news"
+expect_body "hreflang x-default" 'hreflang="x-default"' "$BASE/en/"
+expect_status "unknown locale still 404" 404 "$BASE/de/"
 
 echo "Admin (no database needed)"
 expect_status "admin root redirects" 302 "$BASE/admin"
@@ -93,12 +125,16 @@ expect_status "dashboard requires login" 302 "$BASE/admin/dashboard"
 [ "$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/admin/dashboard")" = "$BASE/admin/login" ] && ok "dashboard redirects to login" || bad "dashboard redirect target"
 expect_status "password page requires login" 302 "$BASE/admin/password"
 expect_status "logout without session/token" 302 -X POST "$BASE/admin/logout"
-for p in dashboard password profile feedback feedback/1 topics topics/new topics/1/edit news news/new news/1/edit assignments practical laboratory categories materials materials/new materials/1/edit; do
+for p in dashboard password profile topics topics/new topics/1/edit news news/new news/1/edit assignments practical laboratory categories materials materials/new materials/1/edit; do
   expect_status "GET /admin/$p needs login" 302 "$BASE/admin/$p"
 done
-for p in password profile topics topics/1 topics/1/delete news news/1 materials materials/1/delete feedback/1/status feedback/1/delete logout; do
+for p in password profile topics topics/1 topics/1/delete news news/1 materials materials/1/delete logout; do
   expect_status "POST /admin/$p needs login" 302 -X POST -d 'x=1' "$BASE/admin/$p"
 done
+if [ "$CONTACT" = true ]; then
+  for p in feedback feedback/1; do expect_status "GET /admin/$p needs login" 302 "$BASE/admin/$p"; done
+  for p in feedback/1/status feedback/1/delete; do expect_status "POST /admin/$p needs login" 302 -X POST -d 'x=1' "$BASE/admin/$p"; done
+fi
 expect_status "login page" 200 "$BASE/admin/login"
 expect_body "login form has csrf field" 'name="_token"' "$BASE/admin/login"
 expect_no_body "login page is not a public page (no site nav)" 'aria-current="page"' "$BASE/admin/login"

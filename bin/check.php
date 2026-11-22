@@ -83,6 +83,8 @@ try {
     $say('FAIL', 'database connection failed: check DB_* in .env (' . get_class($e) . ')');
 }
 
+$say('OK', 'contact feature: ' . ((bool) $app->config()->get('app.contact_enabled', false) ? 'ON (FEATURE_CONTACT=true)' : 'off (FEATURE_CONTACT=false, expected until the end of the project)'));
+
 echo "Uploads\n";
 $limit = $app->uploads()->effectiveLimit();
 $say($limit >= 5 * 1048576 ? 'OK' : 'WARN', 'largest file a user can upload: ' . round($limit / 1048576, 1) . ' MB (min of UPLOAD_MAX_SIZE, upload_max_filesize, post_max_size)');

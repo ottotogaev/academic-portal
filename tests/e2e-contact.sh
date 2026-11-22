@@ -4,7 +4,7 @@
 set -u
 cd "$(dirname "$0")/.."
 : "${DB_DATABASE:?set DB_* variables for a disposable test database}"
-export APP_ENV=local APP_DEBUG=false SESSION_SECURE=false
+export APP_ENV=local APP_DEBUG=false SESSION_SECURE=false FEATURE_CONTACT=true
 PORT="${PORT:-8769}"; BASE="http://127.0.0.1:${PORT}"; export APP_URL="$BASE"
 ADM="$(mktemp)"; VIS="$(mktemp)"; LOGDIR="$(mktemp -d)"
 php -r '$basePath=getcwd(); $a=require "bootstrap/app.php"; $p=$a->database()->pdo();
@@ -38,7 +38,7 @@ T=$(vtok); sleep 3
 T=$(vtok); sleep 3
 [ "$(vcode -X POST --data-urlencode "_token=$T" --data-urlencode name=Ali --data-urlencode email=bad --data-urlencode 'message=qisqa' "$BASE/uz/contact")" = 422 ] && ok "invalid input -> 422" || bad "validation status"
 curl -s -b "$VIS" -c "$VIS" -X POST --data-urlencode "_token=$T" --data-urlencode name=Ali --data-urlencode email=bad --data-urlencode 'message=qisqa' "$BASE/uz/contact" | grep -q 'value="Ali"' && ok "typed values kept on error" || bad "values lost"
-[ "$(vcode -X POST --data-urlencode "_token=$T" --data-urlencode name=Ali "$BASE/ru/contact")" = 404 ] && ok "POST to an unavailable locale is 404" || bad "ru post"
+[ "$(vcode -X POST --data-urlencode "_token=$T" --data-urlencode name=Ali "$BASE/de/contact")" = 404 ] && ok "POST to an unknown locale is 404" || bad "de post"
 
 echo "Sending"
 CODE=$(send --data-urlencode "name=Ali <b>Valiyev</b>" --data-urlencode email=ali@example.uz --data-urlencode 'subject=<script>alert(1)</script>' --data-urlencode $'message=Birinchi qator <img src=x onerror=alert(1)>\n\nIkkinchi abzats')
@@ -95,5 +95,16 @@ rm -f /tmp/ap_about.html
 curl -s "$BASE/uz/" | grep -q 'class="hero__role">Professor' && ok "home page uses the edited profile" || bad "home not updated"
 curl -s "$BASE/uz/contact" | grep -q 'href="mailto:prof%40example.uz"' && ok "email link on the Contact page" || bad "email link"
 curl -s "$BASE/uz/contact" | grep -q 'href="tel:+998901234567"' && ok "phone link on the Contact page" || bad "phone link"
+
+echo "Profile in Russian and English"
+aget "$BASE/admin/profile" | grep -q 'name="ru__full_name"' && aget "$BASE/admin/profile" | grep -q 'name="en__full_name"' && ok "profile form has Russian and English sections" || bad "no ru/en sections"
+curl -s "$BASE/ru/about" | grep -q 'Саматов Санъат Бахтиёрович' && ok "ru About page falls back to the confirmed Russian data" || bad "ru about fallback"
+PT=$(atok "$BASE/admin/profile")
+[ "$(acode -X POST --data-urlencode "_token=$PT" --data-urlencode "uz__full_name=Samatov San'at Baxtiyorovich" --data-urlencode 'uz__position=Professor' --data-urlencode 'uz__academic_degree=PhD' --data-urlencode 'ru__full_name=Саматов Санъат Бахтиёрович' --data-urlencode 'ru__position=Профессор' --data-urlencode $'ru__biography=Русская биография.' --data-urlencode 'en__full_name=Samatov San'"'"'at Baxtiyorovich' --data-urlencode 'en__position=Professor' --data-urlencode $'en__biography=English biography.' --data-urlencode email=prof@example.uz "$BASE/admin/profile")" = 302 ] && ok "three-language profile saved" || bad "save ru/en profile"
+curl -s "$BASE/ru/about" | grep -q 'Русская биография.' && ok "ru About shows the Russian biography" || bad "ru biography"
+curl -s "$BASE/en/about" | grep -q 'English biography.' && ok "en About shows the English biography" || bad "en biography"
+curl -s "$BASE/uz/about" | grep -q 'English biography.' && bad "English text leaked into uz" || ok "languages stay separate"
+curl -s "$BASE/ru/contact" | grep -q 'Электронная почта' && ok "contact page translated (ru)" || bad "ru contact"
+curl -s "$BASE/en/contact" | grep -q 'name="website"' && ok "contact form available in English too" || bad "en contact form"
 
 echo; echo "$pass passed, $fail failed"; [ "$fail" -eq 0 ]
